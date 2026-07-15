@@ -1,0 +1,30 @@
+stages:
+  - lint
+  - build
+
+lint:
+  stage: lint
+  tags: 
+    - dockter
+  rules:
+    - changes:
+      - ./cmd
+      - ./internal
+  image: golangci/golangci-lint:v2.12.2-alpine
+  script:
+    - golangci-lint fmt ./...
+    - golangci-lint run ./...
+
+build:
+  stage: build
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - changes:
+      - ./cmd
+      - ./internal
+  tags:
+    - docker-build
+  script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u $CI_REGISTRY_USER --password-stdin
+    - docker build -t "${CI_REGISTRY_IMAGE}:${CI_PIPELINE_IID}" .
+    - docker push --platform=linux/amd64 "${CI_REGISTRY_IMAGE}:${CI_PIPELINE_IID}"
