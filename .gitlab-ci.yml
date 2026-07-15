@@ -26,5 +26,5 @@ build:
     - docker-build
   script:
     - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u $CI_REGISTRY_USER --password-stdin
-    - docker build -t "${CI_REGISTRY_IMAGE}:${CI_PIPELINE_IID}" ./Containerfile
+    - docker build -t "${CI_REGISTRY_IMAGE}:${CI_PIPELINE_IID}" -f Containerfile .
     - docker push --platform=linux/amd64 "${CI_REGISTRY_IMAGE}:${CI_PIPELINE_IID}"
