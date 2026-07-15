@@ -31,7 +31,7 @@ func NewServer(submit *app.Submitter, prov *app.Provisioner,
 func (s *Server) Routes() http.Handler {
 	appMux := http.NewServeMux()
 	appMux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "Hello world", r.URL.Path[1:])
+		fmt.Fprint(w, "Hello world")
 	})
 
 	root := http.NewServeMux()
