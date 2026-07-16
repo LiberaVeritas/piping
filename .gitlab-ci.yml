@@ -12,6 +12,7 @@ lint:
       - ./internal
   image: golangci/golangci-lint:v2.12.2-alpine
   script:
+    - go mod tidy
     - golangci-lint fmt ./...
     - golangci-lint run ./...
     - go test ./... -race
