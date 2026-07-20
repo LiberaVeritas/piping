@@ -50,7 +50,8 @@ const LetterY = "27940"
 // ref: ticket format captured from output of Xerox driver
 // which converts to postscript, but this works for pdf too
 // XPIF (Xerox Printing Instruction Format) is xml based
-// XCPT embeds XPIF within PJL
+// XCPT embeds XPIF within PJL (Print Job Language)
+// PDL (Page Description Language) can be PostScript, PCL, PDF etc. in this case LANGUAGE=PDF
 //
 //	ESC%-12345X @PJL JOB
 //	@PJL XCPT <?xml ...?>
@@ -61,7 +62,6 @@ const LetterY = "27940"
 //	<PDL bytes>
 //	ESC%-12345X @PJL EOJ
 //	ESC%-12345X
-//
 func xpifLines(a Attributes) []string {
 	return []string{
 		`<?xml version="1.0" encoding="UTF-8"?>`,

@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"piping/internal/job"
 	"piping/internal/quota"
+	"piping/internal/semester"
 )
 
 func (s *Store) RemainingQuota(ctx context.Context, username string) (int, error) {
@@ -41,7 +41,7 @@ func (s *Store) GrantExists(ctx context.Context, username string, semesterID int
 // upsert semester or return default quota of existing semester if it already exists
 func (s *Store) EnsureSemester(ctx context.Context, id int, defaultQuota int) (int, error) {
 	var effective int
-	name := SemesterNameFromCode(id)
+	name := semester.Name(id)
 	err := s.pool.QueryRow(ctx, `
 		INSERT INTO semester (id, name, default_quota)
 		VALUES ($1, $2, $3)
@@ -114,18 +114,4 @@ func (s *Store) ListRolloverCandidates(ctx context.Context, sinceSemester int) (
 		return nil, fmt.Errorf("iterating candidates: %w", err)
 	}
 	return out, nil
-}
-
-func SemesterNameFromCode(code int) string {
-	year := code / 100
-	switch code % 100 {
-	case 1:
-		return "Winter " + strconv.Itoa(year)
-	case 5:
-		return "Summer " + strconv.Itoa(year)
-	case 9:
-		return "Fall " + strconv.Itoa(year)
-	default:
-		return "Semester " + strconv.Itoa(code)
-	}
 }

@@ -1,3 +1,7 @@
 bin/
 .test
 .out
+dev
+test
+Taskfile.yml
+*.pem

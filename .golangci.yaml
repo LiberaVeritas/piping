@@ -1,37 +1,39 @@
 version: "2"
 linters:
-  enable:
-    - bodyclose
-    - errorlint
-    - exhaustive
-    - rowserrcheck
-    - sqlclosecheck
-    - unused
-    - staticcheck
-    - ineffassign
-  exclusions:
-    generated: lax
-    presets:
-      - comments
-      - common-false-positives
-      - legacy
-      - std-error-handling
-    paths:
-      - third_party$
-      - builtin$
-      - examples$
-    rules:
-      - linters:
-          - errcheck
-        source: "^.*Rollback.*"
+    enable:
+        - bodyclose
+        - errorlint
+        - exhaustive
+        #- errcheck
+        - rowserrcheck
+        - sqlclosecheck
+        - unused
+        - staticcheck
+        - ineffassign
+        - govet
+    exclusions:
+        generated: lax
+        presets:
+            - comments
+            - common-false-positives
+            - legacy
+            - std-error-handling
+        paths:
+            - third_party$
+            - builtin$
+            - examples$
+        rules:
+            - linters:
+                  - errcheck
+              source: "^.*Rollback.*"
 
 formatters:
-  enable:
-    - gofmt
-    - goimports
-  exclusions:
-    generated: lax
-    paths:
-      - third_party$
-      - builtin$
-      - examples$
+    enable:
+        - gofmt
+        - goimports
+    exclusions:
+        generated: lax
+        paths:
+            - third_party$
+            - builtin$
+            - examples$
