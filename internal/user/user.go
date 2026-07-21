@@ -1,12 +1,55 @@
 package user
 
 import (
+	"encoding/json/v2"
+	"fmt"
 	"strings"
 )
+
+type User struct {
+	Username      string
+	FullName      string
+	Email         string
+	Role          Role
+	QuotaEligible bool
+	Enrolments    []int
+}
 
 type Role struct{ name string }
 
 func (r Role) String() string { return r.name }
+
+func (r Role) MarshalJSON() ([]byte, error) {
+	return json.Marshal(r.name)
+}
+
+func (r *Role) UnmarshalJSON(b []byte) error {
+	var s string
+	err := json.Unmarshal(b, &s)
+	if err != nil {
+		return err
+	}
+	role, ok := roleFromName(s)
+	if !ok {
+		return fmt.Errorf("unknown role %q", s)
+	}
+	*r = role
+	return nil
+}
+
+func roleFromName(name string) (Role, bool) {
+	switch name {
+	case "user":
+		return RoleUser, true
+	case "staff":
+		return RoleStaff, true
+	case "admin":
+		return RoleAdmin, true
+	case "":
+		return RoleNone, true
+	}
+	return Role{}, false
+}
 
 var (
 	RoleNone  = Role{""}
@@ -69,11 +112,11 @@ func containsFold(haystack []string, needle string) bool {
 	return false
 }
 
-func EligibleForQuota(department string, groups []string) bool {
-	if strings.EqualFold(department, facultyOfScience) && containsFold(groups, groupAllStudents) {
+func EligibleForQuota(faculty string, groups []string) bool {
+	if strings.EqualFold(faculty, facultyOfScience) && containsFold(groups, groupAllStudents) {
 		return true
 	}
-	if strings.EqualFold(department, interfacultyArtSci) && containsFold(groups, groupArtSciUndergrads) {
+	if strings.EqualFold(faculty, interfacultyArtSci) && containsFold(groups, groupArtSciUndergrads) {
 		return true
 	}
 	if RoleFromGroups(groups) != RoleNone {
@@ -90,13 +133,4 @@ func CTFGroups(groups []string) []string {
 		}
 	}
 	return out
-}
-
-type User struct {
-	Username  string
-	FullName  string
-	Email     string
-	Faculty   string
-	Groups    []string
-	Semesters []int
 }

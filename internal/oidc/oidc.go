@@ -9,8 +9,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"piping/internal/semester"
+	"piping/internal/user"
 	"strings"
 	"time"
+
+	"github.com/go-ldap/ldap/v3"
 )
 
 type ClientConfig struct {
@@ -43,7 +47,6 @@ type pkceChallenge struct {
 
 type tokenResponse struct {
 	AccessToken string `json:"access_token"`
-	IDToken     string `json:"id_token"`
 	Scope       string `json:"scope"`
 }
 
@@ -57,6 +60,7 @@ type UserInfo struct {
 	Username string   `json:"sub"`
 	FullName string   `json:"name"`
 	Email    string   `json:"email"`
+	Faculty  string   `json:"faculty"`
 	Groups   []string `json:"groups"`
 	Courses  []course `json:"courses"`
 }
@@ -143,11 +147,11 @@ func (c *Client) GetAuthURL(originalURL string) (string, error) {
 	return authURL.String(), nil
 }
 
-func (c *Client) GetUserInfo(ctx context.Context, code, state string) (UserInfo, error) {
+func (c *Client) GetUserInfo(ctx context.Context, code, state string) (UserInfo, string, error) {
 	var s State
 	err := c.cfg.Sealer.OpenAsJSON(stateLabel, state, &s)
 	if err != nil {
-		return UserInfo{}, fmt.Errorf("unsealing state %s %v: %w", stateLabel, state, err)
+		return UserInfo{}, "", fmt.Errorf("unsealing state %s %v: %w", stateLabel, state, err)
 	}
 
 	formData := url.Values{
@@ -162,45 +166,45 @@ func (c *Client) GetUserInfo(ctx context.Context, code, state string) (UserInfo,
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.tokenEndpoint,
 		strings.NewReader(formData.Encode()))
 	if err != nil {
-		return UserInfo{}, fmt.Errorf("creating request with %v: %w", formData, err)
+		return UserInfo{}, "", fmt.Errorf("creating request with %v: %w", formData, err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	res, err := c.http.Do(req)
 	if err != nil {
-		return UserInfo{}, fmt.Errorf("posting to token endpoint: %w", err)
+		return UserInfo{}, "", fmt.Errorf("posting to token endpoint: %w", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return UserInfo{}, fmt.Errorf("reading token response %s", res.Status)
+		return UserInfo{}, "", fmt.Errorf("reading token response %s", res.Status)
 	}
 
 	var token tokenResponse
 	err = json.UnmarshalRead(res.Body, &token)
 	if err != nil {
-		return UserInfo{}, fmt.Errorf("decoding token %v: %w", token, err)
+		return UserInfo{}, "", fmt.Errorf("decoding token %v: %w", token, err)
 	}
 
 	req, err = http.NewRequestWithContext(ctx, http.MethodGet, c.userInfoEndpoint, nil)
 	if err != nil {
-		return UserInfo{}, fmt.Errorf("creating request: %w", err)
+		return UserInfo{}, "", fmt.Errorf("creating request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+token.AccessToken)
 	res, err = c.http.Do(req)
 	if err != nil {
-		return UserInfo{}, fmt.Errorf("exchanging token: %w", err)
+		return UserInfo{}, "", fmt.Errorf("exchanging token: %w", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return UserInfo{}, fmt.Errorf("reading user info response %s", res.Status)
+		return UserInfo{}, "", fmt.Errorf("reading user info response %s", res.Status)
 	}
 
 	var userInfo UserInfo
 	err = json.UnmarshalRead(res.Body, &userInfo)
 	if err != nil {
-		return UserInfo{}, fmt.Errorf("decoding user info %v: %w", res, err)
+		return UserInfo{}, "", fmt.Errorf("decoding user info %v: %w", res, err)
 	}
 
-	return userInfo, nil
+	return userInfo, s.OriginalURL, nil
 }
 
 func newPKCEChallenge() pkceChallenge {
@@ -212,4 +216,46 @@ func newPKCEChallenge() pkceChallenge {
 	p.challenge = base64.RawURLEncoding.EncodeToString(checksum[:])
 	p.method = "S256"
 	return p
+}
+
+func firstRDN(dn string) (string, bool) {
+	parsed, err := ldap.ParseDN(dn)
+	if err != nil || len(parsed.RDNs) == 0 || len(parsed.RDNs[0].Attributes) == 0 {
+		return "", false
+	}
+	return parsed.RDNs[0].Attributes[0].Value, true
+}
+
+func (u UserInfo) ToUser() (user.User, error) {
+	groups := []string{}
+	for _, dn := range u.Groups {
+		group, ok := firstRDN(dn)
+		if ok {
+			groups = append(groups, group)
+		}
+	}
+	enrolled := map[int]bool{}
+	for _, course := range u.Courses {
+		code, err := semester.Code(course.Semester)
+		if err != nil {
+			continue
+			//return user.User{}, fmt.Errorf("failed to parse course %s: %w", course, err)
+		}
+		enrolled[code] = true
+	}
+	enrolments := make([]int, 0, len(enrolled))
+	for code := range enrolled {
+		enrolments = append(enrolments, code)
+	}
+	role := user.RoleFromGroups(groups)
+	eligible := user.EligibleForQuota(u.Faculty, groups)
+
+	return user.User{
+		Username:      u.Username,
+		FullName:      u.FullName,
+		Email:         u.Email,
+		Role:          role,
+		QuotaEligible: eligible,
+		Enrolments:    enrolments,
+	}, nil
 }

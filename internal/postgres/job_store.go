@@ -17,15 +17,6 @@ func (s *Store) CheckQuotaAndStore(ctx context.Context, j job.Job) (job.Job, err
 	}
 	defer tx.Rollback(ctx) // no-op if Commit succeeds
 
-	// ON CONFLICT DO UPDATE locks, guarantees atomic upsert
-	_, err = tx.Exec(ctx, `
-		INSERT INTO app_user (id) VALUES ($1)
-		ON CONFLICT (id) DO UPDATE SET id = EXCLUDED.id`,
-		j.Username)
-	if err != nil {
-		return job.Job{}, fmt.Errorf("upserting user %q: %w", j.Username, err)
-	}
-
 	var remaining int64
 	err = tx.QueryRow(ctx, `
 		SELECT COALESCE((SELECT SUM(g.amount) FROM semester_grant g WHERE g.user_id = $1), 0)

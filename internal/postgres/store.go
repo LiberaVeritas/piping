@@ -23,7 +23,6 @@ func (s *Store) translateWriteErr(err error, op string) error {
 	if errors.As(err, &pgErr) {
 		switch pgErr.Code {
 		case "23514": // check_violation
-			s.log.Error("database CHECK violation — upstream validation bypassed or broken", "op", op, "constraint", pgErr.ConstraintName)
 			return fmt.Errorf("%s: check constraint %q violated: %w", op, pgErr.ConstraintName, err)
 		case "23505": // unique_violation (e.g. one grant per user per semester)
 			return fmt.Errorf("%s: already exists (%s): %w", op, pgErr.ConstraintName, err)
