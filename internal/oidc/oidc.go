@@ -9,12 +9,13 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"piping/internal/semester"
-	"piping/internal/user"
 	"strings"
 	"time"
 
 	"github.com/go-ldap/ldap/v3"
+
+	"piping/internal/semester"
+	"piping/internal/user"
 )
 
 type ClientConfig struct {
@@ -104,7 +105,7 @@ func NewFromDiscovery(ctx context.Context, cfg ClientConfig, discoveryURL string
 		return nil, fmt.Errorf("reading discovery json %w", err)
 	}
 	if d.AuthEndpoint == "" || d.TokenEndpoint == "" || d.UserInfoEndpoint == "" {
-		return nil, fmt.Errorf("missing endpoints from discovery %v", d)
+		return nil, fmt.Errorf("missing endpoints from discovery %+v", d)
 	}
 
 	return &Client{
@@ -151,7 +152,7 @@ func (c *Client) GetUserInfo(ctx context.Context, code, state string) (UserInfo,
 	var s State
 	err := c.cfg.Sealer.OpenAsJSON(stateLabel, state, &s)
 	if err != nil {
-		return UserInfo{}, "", fmt.Errorf("unsealing state %s %v: %w", stateLabel, state, err)
+		return UserInfo{}, "", fmt.Errorf("unsealing state %s %+v: %w", stateLabel, state, err)
 	}
 
 	formData := url.Values{
@@ -166,7 +167,7 @@ func (c *Client) GetUserInfo(ctx context.Context, code, state string) (UserInfo,
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.tokenEndpoint,
 		strings.NewReader(formData.Encode()))
 	if err != nil {
-		return UserInfo{}, "", fmt.Errorf("creating request with %v: %w", formData, err)
+		return UserInfo{}, "", fmt.Errorf("creating request with %+v: %w", formData, err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	res, err := c.http.Do(req)
@@ -181,7 +182,7 @@ func (c *Client) GetUserInfo(ctx context.Context, code, state string) (UserInfo,
 	var token tokenResponse
 	err = json.UnmarshalRead(res.Body, &token)
 	if err != nil {
-		return UserInfo{}, "", fmt.Errorf("decoding token %v: %w", token, err)
+		return UserInfo{}, "", fmt.Errorf("decoding token %+v: %w", token, err)
 	}
 
 	req, err = http.NewRequestWithContext(ctx, http.MethodGet, c.userInfoEndpoint, nil)
@@ -201,7 +202,7 @@ func (c *Client) GetUserInfo(ctx context.Context, code, state string) (UserInfo,
 	var userInfo UserInfo
 	err = json.UnmarshalRead(res.Body, &userInfo)
 	if err != nil {
-		return UserInfo{}, "", fmt.Errorf("decoding user info %v: %w", res, err)
+		return UserInfo{}, "", fmt.Errorf("decoding user info %+v: %w", res, err)
 	}
 
 	return userInfo, s.OriginalURL, nil

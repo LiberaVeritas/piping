@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"piping/internal/app"
@@ -89,6 +90,13 @@ func (s *Server) requireRole(requiredRole user.Role, next http.HandlerFunc) http
 	})
 }
 
+func safePath(p string) string {
+	if p == "" || !strings.HasPrefix(p, "/") || strings.HasPrefix(p, "//") {
+		return "/"
+	}
+	return p
+}
+
 func (s *Server) handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	if !query.Has("code") || !query.Has("state") {
@@ -120,5 +128,5 @@ func (s *Server) handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error while logging in", http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, originalURL, http.StatusSeeOther)
+	http.Redirect(w, r, safePath(originalURL), http.StatusSeeOther)
 }
