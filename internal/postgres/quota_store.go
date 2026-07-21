@@ -2,13 +2,9 @@ package postgres
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
-	"github.com/jackc/pgx/v5/pgconn"
-
 	"piping/internal/job"
-	"piping/internal/quota"
 	"piping/internal/semester"
 )
 
@@ -24,28 +20,15 @@ func (s *Store) RemainingQuota(ctx context.Context, username string) (int, error
 	return int(remaining), nil
 }
 
-func (s *Store) GrantExists(ctx context.Context, username string, semesterID int) (bool, error) {
-	var exists bool
-	err := s.pool.QueryRow(ctx, `
-		SELECT EXISTS (
-			SELECT 1 FROM semester_grant
-			WHERE user_id = $1 AND semester_id = $2
-		)`,
-		username, semesterID).Scan(&exists)
-	if err != nil {
-		return false, fmt.Errorf("checking grant for %s semester %d: %w", username, semesterID, err)
-	}
-	return exists, nil
-}
-
 // upsert semester or return default quota of existing semester if it already exists
+// DO UPDATE does nothing but ensures that quota is returned even on conflict
 func (s *Store) EnsureSemester(ctx context.Context, id int, defaultQuota int) (int, error) {
 	var effective int
 	name := semester.Name(id)
 	err := s.pool.QueryRow(ctx, `
 		INSERT INTO semester (id, name, default_quota)
 		VALUES ($1, $2, $3)
-		ON CONFLICT (id) DO UPDATE SET id = excluded.id
+		ON CONFLICT (id) DO UPDATE SET id = EXCLUDED.id
 		RETURNING default_quota`,
 		id, name, defaultQuota).Scan(&effective)
 	if err != nil {
@@ -54,15 +37,12 @@ func (s *Store) EnsureSemester(ctx context.Context, id int, defaultQuota int) (i
 	return effective, nil
 }
 
-func (s *Store) CreateGrant(ctx context.Context, username string, semesterID, amount int) error {
+func (s *Store) EnsureGrant(ctx context.Context, username string, semesterID, amount int) error {
 	_, err := s.pool.Exec(ctx, `
 		INSERT INTO semester_grant (user_id, semester_id, amount)
-		VALUES ($1, $2, $3)`,
+		VALUES ($1, $2, $3)
+		ON CONFLICT (user_id, semester_id) DO NOTHING`,
 		username, semesterID, amount)
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && pgErr.Code == "23505" { // unique_violation
-		return fmt.Errorf("grant for %s semester %d: %w", username, semesterID, quota.ErrGrantExists)
-	}
 	if err != nil {
 		return fmt.Errorf("creating grant for %s semester %d: %w", username, semesterID, err)
 	}
@@ -88,30 +68,6 @@ func (s *Store) ListGrantSemesters(ctx context.Context, username string) ([]int,
 	err = rows.Err()
 	if err != nil {
 		return nil, fmt.Errorf("iterating grant semesters: %w", err)
-	}
-	return out, nil
-}
-
-func (s *Store) ListRolloverCandidates(ctx context.Context, sinceSemester int) ([]string, error) {
-	rows, err := s.pool.Query(ctx, `
-		SELECT DISTINCT user_id FROM semester_grant
-		WHERE semester_id >= $1 ORDER BY user_id`, sinceSemester)
-	if err != nil {
-		return nil, fmt.Errorf("listing rollover candidates: %w", err)
-	}
-	defer rows.Close()
-	var out []string
-	for rows.Next() {
-		var u string
-		err := rows.Scan(&u)
-		if err != nil {
-			return nil, fmt.Errorf("scanning username: %w", err)
-		}
-		out = append(out, u)
-	}
-	err = rows.Err()
-	if err != nil {
-		return nil, fmt.Errorf("iterating candidates: %w", err)
 	}
 	return out, nil
 }

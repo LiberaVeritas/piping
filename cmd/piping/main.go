@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -17,10 +18,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"piping/internal/app"
-	"piping/internal/directory"
 	"piping/internal/ghostscript"
+	"piping/internal/oidc"
 	"piping/internal/postgres"
 	"piping/internal/quota"
+	"piping/internal/seal"
+	"piping/internal/session"
 	"piping/internal/smb"
 	"piping/internal/web"
 )
@@ -88,18 +91,42 @@ func run(ctx context.Context, getenv func(string) string, logw io.Writer) error 
 	if err != nil {
 		return err
 	}
-	baseURL := envStr(getenv, "CTF_API_BASE_URL", "api.ctf.mcgill.ca")
-	ninshouPath := envStr(getenv, "NINSHOU_PATH", "ninshou/api/v1/authenticate/simple")
-	attrispoolPath := envStr(getenv, "ATTRISPOOL_PATH", "/api/v1/users")
-	username, err := envRequired(getenv, "NINSHOU_USERNAME")
-	if err != nil {
-		return err
-	}
-	password, err := envRequired(getenv, "NINSHOU_PASSWORD")
-	if err != nil {
-		return err
-	}
 	defaultQuota, err := envInt(getenv, "DEFAULT_QUOTA", 250)
+	if err != nil {
+		return err
+	}
+
+	oidcClientID, err := envRequired(getenv, "OIDC_CLIENT_ID")
+	if err != nil {
+		return err
+	}
+	oidcClientSecret, err := envRequired(getenv, "OIDC_CLIENT_SECRET")
+	if err != nil {
+		return err
+	}
+	oidcRedirectURI, err := envRequired(getenv, "OIDC_REDIRECT_URI")
+	if err != nil {
+		return err
+	}
+	oidcScopes, err := envRequired(getenv, "OIDC_SCOPES")
+	if err != nil {
+		return err
+	}
+	oidcDiscoveryURL, err := envRequired(getenv, "OIDC_DISCOVERY_URL")
+	if err != nil {
+		return err
+	}
+
+	sealKey64, err := envRequired(getenv, "ENCRYPTION_KEY")
+	if err != nil {
+		return err
+	}
+	sealKey, err := base64.StdEncoding.DecodeString(sealKey64)
+	if err != nil {
+		return fmt.Errorf("seal key must be in base64: %w", err)
+	}
+
+	sessionTTL, err := envDuration(getenv, "SESSION_TTL", 60*time.Minute)
 	if err != nil {
 		return err
 	}
@@ -137,16 +164,25 @@ func run(ctx context.Context, getenv func(string) string, logw io.Writer) error 
 		quota.Rates{ColorRate: colorRate}, maxBytes, maxPages, maxCopies)
 	sweeper := app.NewSweeper(store, sweepEvery, sweepAge, sweepBatch, log)
 
-	dc := &directory.Client{
-		BaseURL:        baseURL,
-		NinshouPath:    ninshouPath,
-		AttrispoolPath: attrispoolPath,
-		User:           username,
-		Password:       password,
-		Log:            log,
+	sealer, err := seal.NewSealer(sealKey)
+	if err != nil {
+		return err
+	}
+	cfg := oidc.ClientConfig{
+		RedirectURI:  oidcRedirectURI,
+		ClientID:     oidcClientID,
+		ClientSecret: oidcClientSecret,
+		Scopes:       oidcScopes,
+		Sealer:       sealer,
 	}
 
-	prov := app.NewProvisioner(dc, store, defaultQuota, log)
+	oidc, err := oidc.NewFromDiscovery(ctx, cfg, oidcDiscoveryURL)
+	if err != nil {
+		return err
+	}
+	session := session.NewManager(sealer, sessionTTL)
+
+	prov := app.NewProvisioner(store, defaultQuota, log)
 
 	go sweeper.Run(ctx)
 
@@ -155,7 +191,7 @@ func run(ctx context.Context, getenv func(string) string, logw io.Writer) error 
 	}
 	srv := &http.Server{
 		Addr:    listenAddr,
-		Handler: web.NewServer(submitter, prov, ready, int64(maxBytes), log).Routes(),
+		Handler: web.NewServer(submitter, prov, oidc, session, ready, int64(maxBytes), log).Routes(),
 	}
 
 	log.Info("piping listening", "addr", listenAddr)

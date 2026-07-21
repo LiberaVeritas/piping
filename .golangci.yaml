@@ -4,13 +4,14 @@ linters:
         - bodyclose
         - errorlint
         - exhaustive
-        #- errcheck
+        - errcheck
         - rowserrcheck
         - sqlclosecheck
         - unused
         - staticcheck
         - ineffassign
         - govet
+        - sloglint
     exclusions:
         generated: lax
         presets:
