@@ -1,33 +1,61 @@
 stages:
   - lint
+  - test
   - build
+
+variables:
+  GOEXPERIMENT: "jsonv2"
+  GIT_AUTHOR_NAME: "GitLab CI Bot"
+  GIT_AUTHOR_EMAIL: "ci-bot@noreply.${CI_SERVER_HOST}"
+  GIT_COMMITTER_NAME: "GitLab CI Bot"
+  GIT_COMMITTER_EMAIL: "ci-bot@noreply.${CI_SERVER_HOST}"
 
 lint:
   stage: lint
-  tags: 
-    - dockter
-  rules:
-    - changes:
-      - ./cmd
-      - ./internal
   image: golangci/golangci-lint:v2.12.2-alpine
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - cmd/**/*
+        - internal/**/*
+  tags:
+    - dockter
+  before_script:
+    - apk add --no-cache git
+    - git remote set-url origin "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
   script:
-    - export GOEXPERIMENT=jsonv2
     - go mod tidy
     - golangci-lint fmt ./...
+
+    - TARGET_BRANCH=${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME:-$CI_COMMIT_BRANCH}
+    - git add . && git diff-index --quiet HEAD || (git commit -m "auto-format & go mod tidy [skip ci]" && git push origin HEAD:$TARGET_BRANCH)
+    
     - golangci-lint run ./...
+
+test:
+  stage: test
+  image: golang:1.26
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - cmd/**/*
+        - internal/**/*
+  tags:
+    - dockter
+  script:
     - go test ./... -race
 
 build:
   stage: build
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-    - changes:
-      - ./cmd
-      - ./internal
+      changes:
+        - cmd/**/*
+        - internal/**/*
   tags:
     - docker-build
   script:
     - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u $CI_REGISTRY_USER --password-stdin
-    - docker build -t "${CI_REGISTRY_IMAGE}:${CI_PIPELINE_IID}" -f Containerfile .
-    - docker push --platform=linux/amd64 "${CI_REGISTRY_IMAGE}:${CI_PIPELINE_IID}"
+    - docker build --platform=linux/amd64 -t "${CI_REGISTRY_IMAGE}:${CI_PIPELINE_IID}" -f Containerfile .
+    - docker push "${CI_REGISTRY_IMAGE}:${CI_PIPELINE_IID}"
