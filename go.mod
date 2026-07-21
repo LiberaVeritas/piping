@@ -5,6 +5,7 @@ go 1.26
 require (
 	github.com/go-ldap/ldap/v3 v3.4.14
 	github.com/jackc/pgx/v5 v5.10.0
+	pgregory.net/rapid v1.3.0
 )
 
 require (
