@@ -103,6 +103,20 @@ func RoleFromGroups(groups []string) Role {
 	return RoleNone
 }
 
+func RoleRank(role Role) int {
+	switch role {
+	case RoleNone:
+		return 0
+	case RoleUser:
+		return 1
+	case RoleStaff:
+		return 2
+	case RoleAdmin:
+		return 3
+	}
+	return 0
+}
+
 func containsFold(haystack []string, needle string) bool {
 	for _, h := range haystack {
 		if strings.EqualFold(h, needle) {

@@ -12,6 +12,7 @@ import (
 	"piping/internal/oidc"
 	"piping/internal/semester"
 	"piping/internal/session"
+	"piping/internal/user"
 )
 
 type Server struct {
@@ -72,6 +73,19 @@ func (s *Server) requireSession(next http.Handler) http.Handler {
 		}
 		reqCtx := context.WithValue(r.Context(), sessionKey{}, sess)
 		next.ServeHTTP(w, r.WithContext(reqCtx))
+	})
+}
+
+func (s *Server) requireRole(requiredRole user.Role, next http.HandlerFunc) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sess := r.Context().Value(sessionKey{}).(session.Session)
+		if user.RoleRank(sess.Role) < user.RoleRank(requiredRole) {
+			s.log.Info("unprivileged access attempt", "user", sess.Sub,
+				"role", sess.Role, "path", r.URL.RequestURI())
+			http.Error(w, "you do not have the required permissions", http.StatusForbidden)
+			return
+		}
+		next(w, r)
 	})
 }
 
