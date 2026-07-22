@@ -12,6 +12,12 @@ linters:
         - ineffassign
         - govet
         - sloglint
+        - wastedassign
+        - gosec
+    settings:
+        gosec:
+            excludes:
+                - G204
     exclusions:
         generated: lax
         presets:

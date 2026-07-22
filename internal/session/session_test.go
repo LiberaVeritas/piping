@@ -75,12 +75,12 @@ func TestCookieSecurityAttributes(t *testing.T) {
 		role := rapid.SampledFrom([]user.Role{
 			user.RoleNone, user.RoleUser, user.RoleStaff, user.RoleAdmin,
 		}).Draw(rt, "role")
-		err := m.Issue(w, sub, role)
-		if err != nil {
+
+		if err := m.Issue(w, sub, role); err != nil {
 			rt.Fatal(err)
 		}
-		c := w.Result().Cookies()[0]
-		if !c.HttpOnly || !c.Secure || c.SameSite != http.SameSiteLaxMode {
+
+		if c := w.Result().Cookies()[0]; !c.HttpOnly || !c.Secure || c.SameSite != http.SameSiteLaxMode {
 			rt.Fatalf("cookie missing security attributes: %+v", c)
 		}
 	})
@@ -89,8 +89,8 @@ func TestCookieSecurityAttributes(t *testing.T) {
 func TestRoleNoneSessionRoundTrips(t *testing.T) {
 	m := manager(t, time.Hour)
 	w := httptest.NewRecorder()
-	err := m.Issue(w, "student1", user.RoleNone)
-	if err != nil {
+
+	if err := m.Issue(w, "student1", user.RoleNone); err != nil {
 		t.Fatal(err)
 	}
 	sess, err := m.FromRequest(request(t, w))
@@ -106,16 +106,16 @@ func TestExpiredRejected(t *testing.T) {
 	m := manager(t, -time.Minute)
 	w := httptest.NewRecorder()
 	_ = m.Issue(w, "testuser", user.RoleNone)
-	_, err := m.FromRequest(request(t, w))
-	if err == nil {
+
+	if _, err := m.FromRequest(request(t, w)); err == nil {
 		t.Fatal("expired session not rejected")
 	}
 }
 
 func TestNoCookieRejected(t *testing.T) {
 	m := manager(t, time.Hour)
-	_, err := m.FromRequest(httptest.NewRequest("GET", "/", nil))
-	if err == nil {
+
+	if _, err := m.FromRequest(httptest.NewRequest("GET", "/", nil)); err == nil {
 		t.Fatal("no cookie but not rejected")
 	}
 }
@@ -125,9 +125,10 @@ func TestStateBlobRejectedAsSession(t *testing.T) {
 	m := session.NewManager(s, time.Hour)
 	stateBlob, _ := s.SealAsJSON("oidc_state", map[string]string{"original_url": "/", "pkce_verifier": "x"})
 	r := httptest.NewRequest("GET", "/", nil)
+	// #nosec G124
 	r.AddCookie(&http.Cookie{Name: "piping_session", Value: stateBlob})
-	_, err := m.FromRequest(r)
-	if err == nil {
+
+	if _, err := m.FromRequest(r); err == nil {
 		t.Fatal("sealed state accepted as session")
 	}
 }
