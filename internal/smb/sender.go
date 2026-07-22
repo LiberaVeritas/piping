@@ -48,14 +48,12 @@ func (s *Sender) Send(ctx context.Context, dest queue.Destination, payload []byt
 		"-m", "SMB3",
 		"-c", "print "+path,
 	)
-	out, runErr := cmd.CombinedOutput()
-
 	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		return fmt.Errorf("smb send to %s: %w", dest.Address, context.DeadlineExceeded)
 	}
-	if runErr != nil {
-		status := ntStatuses(out)
-		if status != "" {
+	if out, runErr := cmd.CombinedOutput(); runErr != nil {
+
+		if status := ntStatuses(out); status != "" {
 			return fmt.Errorf("smb send to %s: %w (%s)", dest.Address, runErr, status)
 		}
 		return fmt.Errorf("smb send to %s: %w: %s", dest.Address, runErr, truncate(out, 300))

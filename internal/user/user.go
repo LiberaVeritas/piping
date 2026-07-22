@@ -25,8 +25,8 @@ func (r Role) MarshalJSON() ([]byte, error) {
 
 func (r *Role) UnmarshalJSON(b []byte) error {
 	var s string
-	err := json.Unmarshal(b, &s)
-	if err != nil {
+
+	if err := json.Unmarshal(b, &s); err != nil {
 		return err
 	}
 	role, ok := roleFromName(s)

@@ -28,8 +28,8 @@ func NewProvisioner(store provisionStore, defaultQuota int, log *slog.Logger) *P
 // faculty of science, or interfaculty ArtSci
 // past semesters are migrated from tepid
 func (p *Provisioner) Provision(ctx context.Context, user user.User, currentSemester int) error {
-	err := p.store.EnsureUser(ctx, user.Username)
-	if err != nil {
+
+	if err := p.store.EnsureUser(ctx, user.Username); err != nil {
 		return err
 	}
 	entitled := map[int]bool{}

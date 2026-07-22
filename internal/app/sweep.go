@@ -48,8 +48,8 @@ func (s *Sweeper) pass(ctx context.Context) {
 		return
 	}
 	for _, j := range stale {
-		err := s.jobs.UpdateJobState(ctx, j.ID, j.State, job.PrintFailed)
-		switch {
+
+		switch err := s.jobs.UpdateJobState(ctx, j.ID, j.State, job.PrintFailed); {
 		case errors.Is(err, job.ErrUnexpectedState):
 			// resolved by Deliverer
 			continue
