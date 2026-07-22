@@ -43,8 +43,8 @@ func Code(semester string) (int, error) {
 }
 
 func Name(code int) string {
-	year := code / 100
-	switch code % 100 {
+
+	switch year := code / 100; code % 100 {
 	case 1:
 		return "Winter " + strconv.Itoa(year)
 	case 5:

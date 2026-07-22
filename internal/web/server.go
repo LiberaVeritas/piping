@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -69,6 +70,7 @@ func (s *Server) requireSession(next http.Handler) http.Handler {
 				http.Error(w, "server error while logging in", http.StatusInternalServerError)
 				return
 			}
+			// #nosec G710
 			http.Redirect(w, r, authURL, http.StatusSeeOther)
 			return
 		}
@@ -79,8 +81,8 @@ func (s *Server) requireSession(next http.Handler) http.Handler {
 
 func (s *Server) requireRole(requiredRole user.Role, next http.HandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		sess := r.Context().Value(sessionKey{}).(session.Session)
-		if user.RoleRank(sess.Role) < user.RoleRank(requiredRole) {
+
+		if sess := r.Context().Value(sessionKey{}).(session.Session); user.RoleRank(sess.Role) < user.RoleRank(requiredRole) {
 			s.log.Info("unprivileged access attempt", "user", sess.Sub,
 				"role", sess.Role, "path", r.URL.RequestURI())
 			http.Error(w, "you do not have the required permissions", http.StatusForbidden)
@@ -91,10 +93,17 @@ func (s *Server) requireRole(requiredRole user.Role, next http.HandlerFunc) http
 }
 
 func safePath(p string) string {
-	if p == "" || !strings.HasPrefix(p, "/") || strings.HasPrefix(p, "//") {
+	u, err := url.Parse(p)
+	if err != nil {
 		return "/"
 	}
-	return p
+	if u.IsAbs() || u.Host != "" {
+		return "/"
+	}
+	if !strings.HasPrefix(u.Path, "/") {
+		return "/"
+	}
+	return u.RequestURI()
 }
 
 func (s *Server) handleAuthCallback(w http.ResponseWriter, r *http.Request) {
@@ -128,5 +137,6 @@ func (s *Server) handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error while logging in", http.StatusInternalServerError)
 		return
 	}
+	// #nosec G710
 	http.Redirect(w, r, safePath(originalURL), http.StatusSeeOther)
 }

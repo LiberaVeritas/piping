@@ -34,16 +34,16 @@ func TestWrongKeyRejected(t *testing.T) {
 		s2, _ := seal.NewSealer(b)
 		sealed, _ := s1.SealAsJSON("test", blob{A: "x"})
 		var out blob
-		err := s2.OpenAsJSON("test", sealed, &out)
-		if err == nil {
+
+		if err := s2.OpenAsJSON("test", sealed, &out); err == nil {
 			rt.Fatal("blob sealed with another key opened")
 		}
 	})
 }
 
 func TestBadKeyLength(t *testing.T) {
-	_, err := seal.NewSealer([]byte("short"))
-	if err == nil {
+
+	if _, err := seal.NewSealer([]byte("short")); err == nil {
 		t.Fatal("keys must be 32 bytes")
 	}
 }

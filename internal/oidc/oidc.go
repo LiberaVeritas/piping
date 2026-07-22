@@ -150,8 +150,8 @@ func (c *Client) GetAuthURL(originalURL string) (string, error) {
 
 func (c *Client) GetUserInfo(ctx context.Context, code, state string) (UserInfo, string, error) {
 	var s State
-	err := c.cfg.Sealer.OpenAsJSON(stateLabel, state, &s)
-	if err != nil {
+
+	if err := c.cfg.Sealer.OpenAsJSON(stateLabel, state, &s); err != nil {
 		return UserInfo{}, "", fmt.Errorf("unsealing state %s %+v: %w", stateLabel, state, err)
 	}
 
@@ -230,8 +230,8 @@ func firstRDN(dn string) (string, bool) {
 func (u UserInfo) ToUser() (user.User, error) {
 	groups := []string{}
 	for _, dn := range u.Groups {
-		group, ok := firstRDN(dn)
-		if ok {
+
+		if group, ok := firstRDN(dn); ok {
 			groups = append(groups, group)
 		}
 	}

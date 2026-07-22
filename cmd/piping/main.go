@@ -29,8 +29,8 @@ import (
 )
 
 func main() {
-	err := run(context.Background(), os.Getenv, os.Stderr)
-	if err != nil {
+
+	if err := run(context.Background(), os.Getenv, os.Stderr); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
@@ -190,8 +190,9 @@ func run(ctx context.Context, getenv func(string) string, logw io.Writer) error 
 		return pool.Ping(c)
 	}
 	srv := &http.Server{
-		Addr:    listenAddr,
-		Handler: web.NewServer(submitter, prov, oidc, session, ready, int64(maxBytes), log).Routes(),
+		Addr:              listenAddr,
+		Handler:           web.NewServer(submitter, prov, oidc, session, ready, int64(maxBytes), log).Routes(),
+		ReadHeaderTimeout: 2 * time.Second,
 	}
 
 	log.Info("piping listening", "addr", listenAddr)
@@ -205,10 +206,11 @@ func run(ctx context.Context, getenv func(string) string, logw io.Writer) error 
 	go func() {
 		defer wg.Done()
 		<-ctx.Done()
-		shutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		stop()
+		shutCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 		defer cancel()
-		err := srv.Shutdown(shutCtx)
-		if err != nil {
+
+		if err := srv.Shutdown(shutCtx); err != nil {
 			log.Error("shutting down http server", "err", err)
 		}
 	}()
@@ -219,8 +221,8 @@ func run(ctx context.Context, getenv func(string) string, logw io.Writer) error 
 }
 
 func envStr(getenv func(string) string, key, def string) string {
-	v := getenv(key)
-	if v != "" {
+
+	if v := getenv(key); v != "" {
 		return v
 	}
 	return def
