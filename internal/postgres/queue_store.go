@@ -64,8 +64,8 @@ func (s *Store) DestinationsForQueue(ctx context.Context, queueID int64) ([]queu
 	var out []queue.Destination
 	for rows.Next() {
 		var d queue.Destination
-		err := rows.Scan(&d.ID, &d.QueueID, &d.Address, &d.Name, &d.Enabled)
-		if err != nil {
+
+		if err := rows.Scan(&d.ID, &d.QueueID, &d.Address, &d.Name, &d.Enabled); err != nil {
 			return nil, fmt.Errorf("scanning destination: %w", err)
 		}
 		out = append(out, d)
@@ -75,9 +75,9 @@ func (s *Store) DestinationsForQueue(ctx context.Context, queueID int64) ([]queu
 
 func (s *Store) LoadBalancerPolicyForQueue(ctx context.Context, queueID int64) (queue.LoadBalancerPolicy, error) {
 	var policy string
-	err := s.pool.QueryRow(ctx, `
-		SELECT policy FROM queue WHERE id = $1`, queueID).Scan(&policy)
-	if err != nil {
+
+	if err := s.pool.QueryRow(ctx, `
+		SELECT policy FROM queue WHERE id = $1`, queueID).Scan(&policy); err != nil {
 		return queue.UnknownPolicy, fmt.Errorf("getting policy for queue %d: %w", queueID, err)
 	}
 	return queue.PolicyFromString(policy)

@@ -71,5 +71,6 @@ func (uniformBalancer) Choose(dests []Destination) (Destination, error) {
 	if len(dests) == 0 {
 		return Destination{}, errors.New("no destinations to choose from")
 	}
+	// #nosec G404
 	return dests[rand.IntN(len(dests))], nil
 }
