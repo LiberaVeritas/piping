@@ -22,8 +22,7 @@ lint:
   tags:
     - dockter
   before_script:
-    - git remote set-url origin "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
-    - git config --global http.version HTTP/1.1
+    - git remote set-url origin "https://oauth2:${CI_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
   script:
     - go mod tidy
     - golangci-lint fmt ./...
