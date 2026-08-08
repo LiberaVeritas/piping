@@ -2,58 +2,69 @@ package web
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
-	"net/url"
-	"strings"
 	"time"
 
 	"piping/internal/app"
+	"piping/internal/job"
 	"piping/internal/oidc"
-	"piping/internal/semester"
+	"piping/internal/queue"
 	"piping/internal/session"
 	"piping/internal/user"
 )
 
+type dashboardStore interface {
+	RemainingQuota(ctx context.Context, username string) (int, error)
+	GrantedQuota(ctx context.Context, username string) (int, error)
+	EnabledQueues(ctx context.Context) ([]queue.Queue, error)
+	JobsWithDestinationForUser(ctx context.Context, username string,
+		newerThan time.Time, limit int) ([]job.WithDestinationName, error)
+}
+
 type Server struct {
 	submit    *app.Submitter
 	prov      *app.Provisioner
+	dash      dashboardStore
 	oidc      *oidc.Client
 	session   *session.Manager
 	ready     func(context.Context) error
-	maxUpload int64
+	maxBytes  int64
+	maxCopies int
+	origin    string
 	log       *slog.Logger
+	pages     map[string]renderer
 }
 
-func NewServer(submit *app.Submitter, prov *app.Provisioner, oidc *oidc.Client, session *session.Manager,
-	ready func(context.Context) error, maxUpload int64, log *slog.Logger) *Server {
-	return &Server{
-		submit: submit, prov: prov, oidc: oidc, session: session,
-		ready: ready, maxUpload: maxUpload, log: log,
+func NewServer(submit *app.Submitter, prov *app.Provisioner, dash dashboardStore,
+	oidc *oidc.Client, sess *session.Manager, ready func(context.Context) error,
+	maxUpload int64, maxCopies int, origin string, log *slog.Logger) (*Server, error) {
+	pages, err := parsePages()
+	if err != nil {
+		return nil, err
 	}
+	return &Server{
+		submit: submit, prov: prov, dash: dash, oidc: oidc, session: sess, ready: ready,
+		maxBytes: maxUpload, maxCopies: maxCopies, origin: origin, log: log, pages: pages,
+	}, nil
 }
 
 func (s *Server) Routes() http.Handler {
 	appMux := http.NewServeMux()
-	appMux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, "Hello world")
-	})
+	appMux.HandleFunc("GET /{$}", s.handleHome)
+	appMux.Handle("POST /job", s.checkOrigin(s.handleSubmit))
+	appMux.HandleFunc("GET /jobs", s.handleJobs)
+	// TODO
+	appMux.Handle("GET /admin", s.requireRole(user.RoleStaff, s.handleAdmin))
+
 	root := http.NewServeMux()
-	root.HandleFunc("GET /auth/callback", s.handleAuthCallback)
+	root.Handle("GET /static/", StaticHandler())
 	root.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = io.WriteString(w, "ok\n")
 	})
-	root.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
-		defer cancel()
-		if s.ready == nil || s.ready(ctx) != nil {
-			http.Error(w, "not ready", http.StatusServiceUnavailable)
-			return
-		}
-		_, _ = io.WriteString(w, "ready\n")
-	})
+	root.HandleFunc("GET /readyz", s.handleReady)
+	root.HandleFunc("GET /auth/callback", s.handleAuthCallback)
 	root.Handle("/", s.requireSession(appMux))
 	return root
 }
@@ -62,14 +73,17 @@ type sessionKey struct{}
 
 func (s *Server) requireSession(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		s.log.Debug("require session wrapping", "method", r.Method, "url", r.URL)
 		sess, err := s.session.FromRequest(r)
 		if err != nil {
+			s.log.Info("getting session", "err", err)
 			authURL, aErr := s.oidc.GetAuthURL(r.URL.RequestURI())
 			if aErr != nil {
 				s.log.Error("logging in", "auth err", aErr, "session err", err)
 				http.Error(w, "server error while logging in", http.StatusInternalServerError)
 				return
 			}
+			s.log.Debug("no session, redirecting", "auth", authURL)
 			// #nosec G710
 			http.Redirect(w, r, authURL, http.StatusSeeOther)
 			return
@@ -79,10 +93,15 @@ func (s *Server) requireSession(next http.Handler) http.Handler {
 	})
 }
 
+func sessionFrom(ctx context.Context) session.Session {
+	sess, _ := ctx.Value(sessionKey{}).(session.Session)
+	return sess
+}
+
 func (s *Server) requireRole(requiredRole user.Role, next http.HandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-		if sess := r.Context().Value(sessionKey{}).(session.Session); user.RoleRank(sess.Role) < user.RoleRank(requiredRole) {
+		sess := sessionFrom(r.Context())
+		if user.RoleRank(sess.Role) < user.RoleRank(requiredRole) {
 			s.log.Info("unprivileged access attempt", "user", sess.Sub,
 				"role", sess.Role, "path", r.URL.RequestURI())
 			http.Error(w, "you do not have the required permissions", http.StatusForbidden)
@@ -92,51 +111,19 @@ func (s *Server) requireRole(requiredRole user.Role, next http.HandlerFunc) http
 	})
 }
 
-func safePath(p string) string {
-	u, err := url.Parse(p)
-	if err != nil {
-		return "/"
-	}
-	if u.IsAbs() || u.Host != "" {
-		return "/"
-	}
-	if !strings.HasPrefix(u.Path, "/") {
-		return "/"
-	}
-	return u.RequestURI()
-}
-
-func (s *Server) handleAuthCallback(w http.ResponseWriter, r *http.Request) {
-	query := r.URL.Query()
-	if !query.Has("code") || !query.Has("state") {
-		s.log.Info("auth callback req missing code or state", "query", query)
-		http.Error(w, "server error while logging in", http.StatusBadRequest)
-		return
-	}
-	userInfo, originalURL, err := s.oidc.GetUserInfo(r.Context(), query.Get("code"), query.Get("state"))
-	if err != nil {
-		s.log.Info("handling auth callback", "err", err)
-		http.Error(w, "server error while logging in", http.StatusBadRequest)
-		return
-	}
-	u, err := userInfo.ToUser()
-	if err != nil {
-		s.log.Error("parsing user info", "err", err)
-		http.Error(w, "server error while logging in", http.StatusInternalServerError)
-		return
-	}
-	err = s.prov.Provision(r.Context(), u, semester.Current(time.Now()))
-	if err != nil {
-		s.log.Error("provisioning upon login", "err", err)
-		http.Error(w, "server error while logging in", http.StatusInternalServerError)
-		return
-	}
-	err = s.session.Issue(w, u.Username, u.Role)
-	if err != nil {
-		s.log.Error("issuing session cookie", "err", err)
-		http.Error(w, "server error while logging in", http.StatusInternalServerError)
-		return
-	}
-	// #nosec G710
-	http.Redirect(w, r, safePath(originalURL), http.StatusSeeOther)
+func (s *Server) checkOrigin(next http.HandlerFunc) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			s.log.Debug("request received with no origin header set")
+			next(w, r)
+			return
+		}
+		if origin != s.origin {
+			s.log.Warn("request received from unexpected origin", "origin", origin, "expected", s.origin)
+			http.Error(w, "there was an error with your request", http.StatusForbidden)
+			return
+		}
+		next(w, r)
+	})
 }

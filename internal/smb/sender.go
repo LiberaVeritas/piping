@@ -1,11 +1,9 @@
 package smb
 
 import (
+	"bytes"
 	"context"
-	"errors"
 	"fmt"
-	"log/slog"
-	"os"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -19,45 +17,25 @@ type Sender struct {
 	// password =
 	// domain =
 	authFile string
-	log      *slog.Logger
 }
 
-func New(authFile string, log *slog.Logger) *Sender {
-	return &Sender{authFile: authFile, log: log}
+func New(authFile string) *Sender {
+	return &Sender{authFile: authFile}
 }
 
 func (s *Sender) Send(ctx context.Context, dest queue.Destination, payload []byte) error {
-	f, err := os.CreateTemp("", "piping-*")
-	if err != nil {
-		return fmt.Errorf("creating temp file: %w", err)
-	}
-	path := f.Name()
-	defer os.Remove(path)
-	_, err = f.Write(payload)
-	if err != nil {
-		_ = f.Close()
-		return fmt.Errorf("writing temp file: %w", err)
-	}
-	err = f.Close()
-	if err != nil {
-		return fmt.Errorf("closing temp file: %w", err)
-	}
-
-	cmd := exec.CommandContext(ctx, "smbclient", dest.Address,
-		"-A", s.authFile,
-		"-m", "SMB3",
-		"-c", "print "+path,
-	)
-	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-		return fmt.Errorf("smb send to %s: %w", dest.Address, context.DeadlineExceeded)
-	}
-	if out, runErr := cmd.CombinedOutput(); runErr != nil {
-
-		if status := ntStatuses(out); status != "" {
-			return fmt.Errorf("smb send to %s: %w (%s)", dest.Address, runErr, status)
+	cmd := exec.CommandContext(ctx, "smbclient", "//"+dest.Address, "-A", s.authFile, "-m", "SMB3", "-c", "print -")
+	cmd.Stdin = bytes.NewReader(payload)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return fmt.Errorf("smb send to %q: %w", dest.Address, ctxErr)
 		}
-		return fmt.Errorf("smb send to %s: %w: %s", dest.Address, runErr, truncate(out, 300))
+		if status := ntStatuses(out); status != "" {
+			return fmt.Errorf("smb send to %q: %w (%q)", dest.Address, err, status)
+		}
+		return fmt.Errorf("smb send to %q: %w: %q", dest.Address, err, truncate(out, 300))
 	}
+
 	return nil
 }
 

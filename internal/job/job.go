@@ -6,6 +6,24 @@ import (
 	"time"
 )
 
+type Job struct {
+	ID            int64
+	Username      string
+	QueueID       int64
+	DestinationID *int64
+	State         State
+	NumPages      int
+	NumColorPages int
+	Copies        int
+	Cost          int
+	Color         bool
+	Duplex        bool
+	DocumentName  string
+	SubmittedAt   time.Time
+	CompletedAt   *time.Time
+	RefundedAt    *time.Time
+}
+
 type State struct{ name string }
 
 func (s State) String() string { return s.name }
@@ -73,20 +91,7 @@ func ValidTransition(from, to State) bool {
 	return false
 }
 
-type Job struct {
-	ID            int64
-	Username      string
-	QueueID       int64
-	DestinationID *int64
-	State         State
-	NumPages      int
-	NumColorPages int
-	Copies        int
-	Cost          int
-	Color         bool
-	Duplex        bool
-	DocumentName  string
-	SubmittedAt   time.Time
-	CompletedAt   *time.Time
-	RefundedAt    *time.Time
+type WithDestinationName struct {
+	Job
+	DestinationName string
 }

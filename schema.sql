@@ -8,7 +8,7 @@ CREATE TYPE job_state AS ENUM (
 );
 
 CREATE TABLE app_user (
-	id text PRIMARY KEY, -- short username as canonical user id
+	id text PRIMARY KEY -- short username as canonical user id
 );
 
 CREATE TABLE semester (
@@ -72,3 +72,5 @@ CREATE INDEX idx_job_user_state ON job (user_id, state);
 CREATE INDEX idx_job_state_submitted ON job (state, submitted_at);
 
 CREATE INDEX idx_job_user_submitted ON job (user_id, submitted_at DESC);
+
+CREATE INDEX idx_job_queue_submitted ON job (queue_id, submitted_at DESC);

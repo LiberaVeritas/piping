@@ -1,7 +1,9 @@
 package session
 
 import (
+	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -12,6 +14,8 @@ const (
 	sessionLabel = "session"
 	cookieName   = "piping_session"
 )
+
+var ErrExpired = errors.New("session expired")
 
 type Session struct {
 	Sub  string    `json:"sub"`
@@ -27,19 +31,21 @@ type Sealer interface {
 type Manager struct {
 	seal Sealer
 	ttl  time.Duration
+	log  *slog.Logger
 }
 
-func NewManager(seal Sealer, ttl time.Duration) *Manager {
+func NewManager(seal Sealer, ttl time.Duration, log *slog.Logger) *Manager {
 	return &Manager{
 		seal: seal,
 		ttl:  ttl,
+		log:  log,
 	}
 }
 
 func (m *Manager) FromRequest(r *http.Request) (Session, error) {
 	cookie, err := r.Cookie(cookieName)
 	if err != nil {
-		return Session{}, err
+		return Session{}, fmt.Errorf("getting cookie %s: %w", cookieName, err)
 	}
 	var session Session
 	err = m.seal.OpenAsJSON(sessionLabel, cookie.Value, &session)
@@ -47,12 +53,13 @@ func (m *Manager) FromRequest(r *http.Request) (Session, error) {
 		return Session{}, fmt.Errorf("invalid session: %w", err)
 	}
 	if time.Now().Unix() > session.Exp {
-		return Session{}, fmt.Errorf("session expired")
+		return Session{}, fmt.Errorf("%w for user %q", ErrExpired, session.Sub)
 	}
 	return session, nil
 }
 
 func (m *Manager) Issue(w http.ResponseWriter, sub string, role user.Role) error {
+	m.log.Debug("issuing session cookie", "user", sub, "role", role)
 	sealed, err := m.seal.SealAsJSON(sessionLabel, Session{
 		Sub:  sub,
 		Role: role,
@@ -61,6 +68,7 @@ func (m *Manager) Issue(w http.ResponseWriter, sub string, role user.Role) error
 	if err != nil {
 		return fmt.Errorf("sealing session: %w", err)
 	}
+	// TODO support DBSC
 	http.SetCookie(w, &http.Cookie{
 		Name:     cookieName,
 		Value:    sealed,
@@ -71,4 +79,17 @@ func (m *Manager) Issue(w http.ResponseWriter, sub string, role user.Role) error
 		MaxAge:   int(m.ttl.Seconds()),
 	})
 	return nil
+}
+
+func (m *Manager) Clear(w http.ResponseWriter) {
+	m.log.Debug("clearing session cookie")
+	http.SetCookie(w, &http.Cookie{
+		Name:     cookieName,
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   -1,
+	})
 }

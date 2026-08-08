@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json/v2"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -24,6 +25,7 @@ type ClientConfig struct {
 	ClientSecret string
 	Scopes       string
 	Sealer       Sealer
+	Log          *slog.Logger
 }
 
 type Client struct {
@@ -80,9 +82,27 @@ type Sealer interface {
 
 const stateLabel = "oidc_state"
 
+func New(ctx context.Context, cfg ClientConfig, authEndpoint, tokenEndpoint, userEndpoint string) (*Client, error) {
+	if cfg.Sealer == nil || cfg.ClientID == "" || cfg.ClientSecret == "" || cfg.RedirectURI == "" ||
+		cfg.Scopes == "" || cfg.Log == nil || authEndpoint == "" || tokenEndpoint == "" || userEndpoint == "" {
+		return nil, fmt.Errorf("Sealer or Log is nil or missing client values client id %q, redirect uri %q, scopes %q, "+
+			"auth endpoint %q, token endpoint %q, user info endpoint %q",
+			cfg.ClientID, cfg.RedirectURI, cfg.Scopes, authEndpoint, tokenEndpoint, userEndpoint)
+	}
+	h := &http.Client{Timeout: 10 * time.Second}
+	return &Client{
+		cfg:              cfg,
+		authEndpoint:     authEndpoint,
+		tokenEndpoint:    tokenEndpoint,
+		userInfoEndpoint: userEndpoint,
+		http:             h,
+	}, nil
+}
+
 func NewFromDiscovery(ctx context.Context, cfg ClientConfig, discoveryURL string) (*Client, error) {
-	if cfg.Sealer == nil || cfg.ClientID == "" || cfg.ClientSecret == "" || cfg.RedirectURI == "" || cfg.Scopes == "" {
-		return nil, fmt.Errorf("Sealer is nil or missing client values client id %s, redirect uri %s, scopes %s",
+	if cfg.Sealer == nil || cfg.ClientID == "" || cfg.ClientSecret == "" ||
+		cfg.RedirectURI == "" || cfg.Scopes == "" || cfg.Log == nil {
+		return nil, fmt.Errorf("Sealer or Log is nil or missing client values client id %q, redirect uri %q, scopes %q",
 			cfg.ClientID, cfg.RedirectURI, cfg.Scopes)
 	}
 	var d oidcDiscovery
@@ -94,7 +114,7 @@ func NewFromDiscovery(ctx context.Context, cfg ClientConfig, discoveryURL string
 	}
 	res, err := h.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("fetching discovery %s: %w", discoveryURL, err)
+		return nil, fmt.Errorf("fetching discovery %q: %w", discoveryURL, err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
@@ -118,15 +138,17 @@ func NewFromDiscovery(ctx context.Context, cfg ClientConfig, discoveryURL string
 }
 
 func (c *Client) GetAuthURL(originalURL string) (string, error) {
+	c.cfg.Log.Debug("getting auth url")
 	pkce := newPKCEChallenge()
 	state := State{
 		OriginalURL:  originalURL,
 		PKCEVerifier: pkce.verifier,
 		Scopes:       c.cfg.Scopes,
 	}
+	c.cfg.Log.Debug("built state", "original url", state.OriginalURL, "scopes", state.Scopes)
 	sealedState, err := c.cfg.Sealer.SealAsJSON(stateLabel, state)
 	if err != nil {
-		return "", fmt.Errorf("sealing state %s, %s: %w", stateLabel, state.OriginalURL, err)
+		return "", fmt.Errorf("sealing state %q, %q: %w", stateLabel, state.OriginalURL, err)
 	}
 
 	query := url.Values{
@@ -138,10 +160,10 @@ func (c *Client) GetAuthURL(originalURL string) (string, error) {
 		"code_challenge_method": {pkce.method},
 		"state":                 {sealedState},
 	}
-
+	c.cfg.Log.Debug("built query", "redirect uri", query.Get("redirect_uri"))
 	authURL, err := url.Parse(c.authEndpoint)
 	if err != nil {
-		return "", fmt.Errorf("parsing auth endpoint %s: %w", c.authEndpoint, err)
+		return "", fmt.Errorf("parsing auth endpoint %q: %w", c.authEndpoint, err)
 	}
 	authURL.RawQuery = query.Encode()
 
@@ -149,11 +171,12 @@ func (c *Client) GetAuthURL(originalURL string) (string, error) {
 }
 
 func (c *Client) GetUserInfo(ctx context.Context, code, state string) (UserInfo, string, error) {
+	c.cfg.Log.Debug("getting user info")
 	var s State
-
 	if err := c.cfg.Sealer.OpenAsJSON(stateLabel, state, &s); err != nil {
 		return UserInfo{}, "", fmt.Errorf("unsealing state %s %+v: %w", stateLabel, state, err)
 	}
+	c.cfg.Log.Debug("retrieved state")
 
 	formData := url.Values{
 		"grant_type":    {"authorization_code"},
@@ -163,11 +186,12 @@ func (c *Client) GetUserInfo(ctx context.Context, code, state string) (UserInfo,
 		"client_secret": {c.cfg.ClientSecret},
 		"code_verifier": {s.PKCEVerifier},
 	}
+	c.cfg.Log.Debug("built query", "redirect uri", formData.Get("redirect_uri"))
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.tokenEndpoint,
 		strings.NewReader(formData.Encode()))
 	if err != nil {
-		return UserInfo{}, "", fmt.Errorf("creating request with %+v: %w", formData, err)
+		return UserInfo{}, "", fmt.Errorf("creating request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	res, err := c.http.Do(req)
@@ -178,6 +202,7 @@ func (c *Client) GetUserInfo(ctx context.Context, code, state string) (UserInfo,
 	if res.StatusCode != http.StatusOK {
 		return UserInfo{}, "", fmt.Errorf("reading token response %s", res.Status)
 	}
+	c.cfg.Log.Debug("received result", "res", res)
 
 	var token tokenResponse
 	err = json.UnmarshalRead(res.Body, &token)
@@ -202,8 +227,9 @@ func (c *Client) GetUserInfo(ctx context.Context, code, state string) (UserInfo,
 	var userInfo UserInfo
 	err = json.UnmarshalRead(res.Body, &userInfo)
 	if err != nil {
-		return UserInfo{}, "", fmt.Errorf("decoding user info %+v: %w", res, err)
+		return UserInfo{}, "", fmt.Errorf("decoding user info %w", err)
 	}
+	c.cfg.Log.Debug("exchanged token", "user", userInfo.Username)
 
 	return userInfo, s.OriginalURL, nil
 }
@@ -227,7 +253,7 @@ func firstRDN(dn string) (string, bool) {
 	return parsed.RDNs[0].Attributes[0].Value, true
 }
 
-func (u UserInfo) ToUser() (user.User, error) {
+func (c *Client) ToUser(u UserInfo) user.User {
 	groups := []string{}
 	for _, dn := range u.Groups {
 
@@ -239,8 +265,8 @@ func (u UserInfo) ToUser() (user.User, error) {
 	for _, course := range u.Courses {
 		code, err := semester.Code(course.Semester)
 		if err != nil {
+			c.cfg.Log.Warn("failed to parse course", "course", course, "err", err)
 			continue
-			//return user.User{}, fmt.Errorf("failed to parse course %s: %w", course, err)
 		}
 		enrolled[code] = true
 	}
@@ -258,5 +284,5 @@ func (u UserInfo) ToUser() (user.User, error) {
 		Role:          role,
 		QuotaEligible: eligible,
 		Enrolments:    enrolments,
-	}, nil
+	}
 }

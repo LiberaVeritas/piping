@@ -45,7 +45,7 @@ type Deliverer struct {
 	log         *slog.Logger
 }
 
-func NewDeliverer(s sender, j deliveryJobStore, q deliveryQueueStore,
+func NewDeliverer(s sender, j deliveryJobStore, q deliveryQueueStore, wait time.Duration,
 	sendTimeout time.Duration, maxAttempts int, log *slog.Logger) *Deliverer {
 	if maxAttempts < 1 {
 		maxAttempts = 1
@@ -56,7 +56,7 @@ func NewDeliverer(s sender, j deliveryJobStore, q deliveryQueueStore,
 		queues:      q,
 		timeout:     sendTimeout,
 		maxAttempts: maxAttempts,
-		retryWait:   500 * time.Millisecond,
+		retryWait:   wait,
 		log:         log,
 	}
 }
@@ -90,12 +90,13 @@ func (d *Deliverer) Deliver(ctx context.Context, j job.Job, doc []byte) (Deliver
 		if errors.Is(err, context.DeadlineExceeded) {
 			return d.resolve(ctx, j.ID, job.PrintSent, DeliveryFailed, err)
 		}
+		d.log.Warn("send failed; retrying", "job", j.ID, "dest", dest.ID,
+			"attempt", attempt, "of", d.maxAttempts, "cause", err)
+
 		if attempt >= d.maxAttempts {
 			d.log.Warn("send failed too many times", "job", j.ID, "dest", dest.ID)
 			return d.resolve(ctx, j.ID, job.PrintSent, DeliveryFailed, err)
 		}
-		d.log.Warn("send failed; retrying", "job", j.ID, "dest", dest.ID,
-			"attempt", attempt, "of", d.maxAttempts, "cause", err)
 		select {
 		case <-sendCtx.Done():
 			return d.resolve(ctx, j.ID, job.PrintSent, DeliveryFailed, err)
@@ -141,7 +142,7 @@ func (d *Deliverer) pickDestination(ctx context.Context, queueID int64) (queue.D
 	}
 	lb, err := queue.LoadBalancerFromPolicy(policy)
 	if err != nil {
-		return queue.Destination{}, fmt.Errorf("getting load balancer %s for queue %d: %w", policy, queueID, err)
+		return queue.Destination{}, fmt.Errorf("getting load balancer %q for queue %d: %w", policy, queueID, err)
 	}
 	dest, err := lb.Choose(dests)
 	if err != nil {

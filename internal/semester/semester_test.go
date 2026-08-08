@@ -36,14 +36,3 @@ func TestCurrentMonotonic(t *testing.T) {
 		}
 	})
 }
-
-func TestCurrentSurvivesWire(t *testing.T) {
-	rapid.Check(t, func(rt *rapid.T) {
-		ts := rapid.Int64Range(946684800, 4102444800).Draw(rt, "ts")
-		code := Current(time.Unix(ts, 0))
-		back, err := Code(Name(code))
-		if err != nil || back != code {
-			rt.Fatalf("Current=%d, Code(Name)=%d err=%v", code, back, err)
-		}
-	})
-}

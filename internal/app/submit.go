@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"piping/internal/job"
 	"piping/internal/pdf"
@@ -60,9 +61,11 @@ type Submitter struct {
 	maxBytes  int
 	maxPages  int
 	maxCopies int
+	log       *slog.Logger
 }
 
-func NewSubmitter(a pdfAnalyzer, q queueReader, j jobCheckQuotaStore, d deliverer, r quota.Rates, maxBytes, maxPages, maxCopies int) *Submitter {
+func NewSubmitter(a pdfAnalyzer, q queueReader, j jobCheckQuotaStore,
+	d deliverer, r quota.Rates, maxBytes, maxPages, maxCopies int, log *slog.Logger) *Submitter {
 	return &Submitter{
 		analyzer:  a,
 		queues:    q,
@@ -72,6 +75,7 @@ func NewSubmitter(a pdfAnalyzer, q queueReader, j jobCheckQuotaStore, d delivere
 		maxBytes:  maxBytes,
 		maxPages:  maxPages,
 		maxCopies: maxCopies,
+		log:       log,
 	}
 }
 
@@ -85,10 +89,12 @@ func (s *Submitter) Submit(ctx context.Context, in SubmitInput) (SubmitResult, e
 
 	q, err := s.queues.GetQueue(ctx, in.QueueID)
 	if err != nil {
-		return SubmitResult{}, fmt.Errorf("getting queue %d: %w", in.QueueID, err)
+		return SubmitResult{},
+			fmt.Errorf("getting queue %d: %w", in.QueueID, err)
 	}
 	if !q.Enabled {
-		return SubmitResult{}, fmt.Errorf("queue %d disabled: %w", in.QueueID, queue.ErrUnavailable)
+		return SubmitResult{},
+			fmt.Errorf("queue %d disabled: %w", in.QueueID, queue.ErrUnavailable)
 	}
 
 	pages, colorPages, err := s.analyzer.CountPages(ctx, in.Document)
@@ -99,13 +105,16 @@ func (s *Submitter) Submit(ctx context.Context, in SubmitInput) (SubmitResult, e
 		colorPages = 0
 	}
 	if pages <= 0 || colorPages < 0 || colorPages > pages {
-		return SubmitResult{}, fmt.Errorf("analyzer returned pages=%d colorPages=%d: %w", pages, colorPages, pdf.ErrUnreadable)
+		return SubmitResult{},
+			fmt.Errorf("analyzer returned pages=%d colorPages=%d: %w", pages, colorPages, pdf.ErrUnreadable)
 	}
 	if pages > s.maxPages {
-		return SubmitResult{}, fmt.Errorf("page count %d over limit %d: %w", pages, s.maxPages, ErrTooManyPages)
+		return SubmitResult{},
+			fmt.Errorf("page count %d over limit %d: %w", pages, s.maxPages, ErrTooManyPages)
 	}
 	if in.Copies < 1 || in.Copies > s.maxCopies {
-		return SubmitResult{}, fmt.Errorf("copy count %d outside [1,%d]: %w", in.Copies, s.maxCopies, ErrInvalidCopies)
+		return SubmitResult{},
+			fmt.Errorf("copy count %d outside [1,%d]: %w", in.Copies, s.maxCopies, ErrInvalidCopies)
 	}
 
 	cost := s.rates.Cost(pages, colorPages) * in.Copies
@@ -129,10 +138,13 @@ func (s *Submitter) Submit(ctx context.Context, in SubmitInput) (SubmitResult, e
 	created, err := s.jobs.CheckQuotaAndStore(ctx, j)
 	if err != nil {
 		if errors.Is(err, quota.ErrInsufficient) {
-			return SubmitResult{JobID: created.ID, Pages: pages, Cost: cost}, fmt.Errorf("cost %d over remaining quota: %w", cost, err)
+			return SubmitResult{JobID: created.ID, Pages: pages, Cost: cost},
+				fmt.Errorf("cost %d over remaining quota: %w", cost, err)
 		}
-		return SubmitResult{}, fmt.Errorf("storing job: %w", err)
+		return SubmitResult{}, fmt.Errorf("storing job for user %q: %w", in.Username, err)
 	}
+
+	s.log.Info("Job submitted", "id", created.ID, "user", in.Username, "queue", in.QueueID)
 
 	outcome, err := s.deliver.Deliver(ctx, created, in.Document)
 	res := SubmitResult{JobID: created.ID, Pages: pages, Cost: cost, Outcome: outcome}

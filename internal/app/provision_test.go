@@ -42,9 +42,6 @@ func (f *fakeProvStore) EnsureGrant(_ context.Context, u string, sem, amt int) e
 	f.grants[sem] = amt
 	return nil
 }
-func (f *fakeProvStore) ListGrantSemesters(_ context.Context, u string) ([]int, error) {
-	return nil, nil
-}
 
 func prov(f *fakeProvStore) *app.Provisioner {
 	return app.NewProvisioner(f, 250, slog.New(slog.DiscardHandler))
@@ -76,7 +73,9 @@ func TestGrantedEqualsEntitled(t *testing.T) {
 			want[current] = true
 		}
 		for _, c := range enrolments {
-			want[c] = true
+			if c <= current {
+				want[c] = true
+			}
 		}
 
 		if len(f.grants) != len(want) {
@@ -87,10 +86,7 @@ func TestGrantedEqualsEntitled(t *testing.T) {
 			if !ok {
 				rt.Fatalf("missing grant for %d: %v", code, f.grants)
 			}
-			wantAmt := 250
-			if code%100 == 5 {
-				wantAmt = 0
-			}
+			wantAmt := p.QuotaFor(code)
 			if amt != wantAmt {
 				rt.Fatalf("grant %d amount %d, want %d", code, amt, wantAmt)
 			}
@@ -99,6 +95,26 @@ func TestGrantedEqualsEntitled(t *testing.T) {
 			rt.Fatalf("EnsureUser calls: %v", f.users)
 		}
 	})
+}
+
+func TestQuotaForHistoricalTable(t *testing.T) {
+	p := app.NewProvisioner(newFakeProvStore(), 250, slog.New(slog.DiscardHandler))
+	cases := map[int]int{
+		201505: 0,
+		201601: 0,
+		201609: 500,  // tepid's first semester
+		201701: 1000, // the 2016-09..2019-09 era
+		201905: 0,    // summer
+		201901: 1000,
+		201909: 250,
+		202401: 250,
+		202505: 0,
+	}
+	for code, want := range cases {
+		if got := p.QuotaFor(code); got != want {
+			t.Errorf("QuotaFor(%d) = %d, want %d", code, got, want)
+		}
+	}
 }
 
 func TestEnrolmentEqualToCurrentNotDoubled(t *testing.T) {

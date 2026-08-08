@@ -1,0 +1,47 @@
+{{define "layout"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>CTF Printing</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/static/favicon.ico" sizes="32x32">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+  <link rel="preload" href="/static/fonts/Exo2.woff2" as="font" type="font/woff2">
+  <link rel="stylesheet" href="/static/piping.css">
+  <script src="/static/htmx.min.js"></script>
+  <script>
+		async function isPdf(file) {
+			const header = await file.slice(0, 5).arrayBuffer();
+			const bytes = new Uint8Array(header);
+			return String.fromCharCode(...bytes) === '%PDF-';
+		}
+		window.addEventListener('dragover', (e) => e.preventDefault());
+		window.addEventListener('drop', (e) => e.preventDefault());
+	</script>
+</head>
+<body>
+	<header>
+		<nav hx-boost="true">
+			<ul>
+				<li id="logo">
+					<img src="/static/logo.png"/>
+				</li>
+				<li id="wordmark">
+					<a href="/">
+						<strong>CTF Printing</strong>{{if .Build}}<span>({{.Build}})</span>{{end}}
+					</a>
+				</li>
+			</ul>
+			<ul>
+				<li><a href="/">Print</a></li>
+				<li><a href="/jobs">My jobs</a></li>
+				<li><a>{{.Username}}</a></li>
+			</ul>
+		</nav>
+	</header>
+	{{block "content" .}}{{end}}
+</body>
+</html>
+{{end}}

@@ -14,10 +14,51 @@ linters:
         - sloglint
         - wastedassign
         - gosec
+        - depguard
     settings:
         gosec:
             excludes:
                 - G204
+        depguard:
+            rules:
+                domain-layer:
+                    files:
+                        - "**/internal/job/**"
+                        - "**/internal/quota/**"
+                        - "**/internal/queue/**"
+                        - "**/internal/user/**"
+                        - "**/internal/semester/**"
+                    deny:
+                        - pkg: "piping/internal/web"
+                          desc: "domain should not depend on the HTTP adapter"
+                        - pkg: "piping/internal/postgres"
+                          desc: "domain should not depend on the db adapter"
+                        - pkg: "piping/internal/oidc"
+                          desc: "domain should not depend on the identity adapter"
+                        - pkg: "piping/internal/app"
+                          desc: "domain should not depend on application services"
+                        - pkg: "net/http"
+                          desc: "domain should not know about HTTP"
+
+                app-layer:
+                    files:
+                        - "**/internal/app/**"
+                    deny:
+                        - pkg: "piping/internal/web"
+                          desc: "app services should not depend on the HTTP adapter"
+                        - pkg: "piping/internal/postgres"
+                          desc: "app services talk to consumer-defined interfaces, not pgx"
+                        - pkg: "net/http"
+                          desc: "app services should not know about HTTP"
+
+                adapters-mutual-dep:
+                    files:
+                        - "**/internal/postgres/**"
+                        - "**/internal/smb/**"
+                        - "**/internal/ghostscript/**"
+                    deny:
+                        - pkg: "piping/internal/web"
+                          desc: "an adapter should not depend on another adapter"
     exclusions:
         generated: lax
         presets:

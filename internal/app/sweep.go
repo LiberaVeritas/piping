@@ -44,11 +44,10 @@ func (s *Sweeper) pass(ctx context.Context) {
 	cutoff := time.Now().Add(-s.ageBound)
 	stale, err := s.jobs.StaleJobs(ctx, []job.State{job.QuotaDeducted, job.PrintSent}, cutoff, s.batchLimit)
 	if err != nil {
-		s.log.Error("sweep: listing stale jobs", "err", err)
+		s.log.Error("sweep", "err", err)
 		return
 	}
 	for _, j := range stale {
-
 		switch err := s.jobs.UpdateJobState(ctx, j.ID, j.State, job.PrintFailed); {
 		case errors.Is(err, job.ErrUnexpectedState):
 			// resolved by Deliverer
@@ -57,7 +56,7 @@ func (s *Sweeper) pass(ctx context.Context) {
 			s.log.Error("sweep: resolving job", "job", j.ID, "err", err)
 			continue
 		default:
-			s.log.Warn("sweep: refunded stale job", "job", j.ID, "was", j.State)
+			s.log.Warn("sweep: resolved stale job", "job", j.ID, "was", j.State)
 		}
 	}
 }
