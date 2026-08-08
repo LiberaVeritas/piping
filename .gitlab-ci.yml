@@ -26,7 +26,7 @@ lint:
     - golangci-lint fmt ./...
   
     - TARGET_BRANCH=${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME:-$CI_COMMIT_BRANCH}
-    - git add . && git diff-index --quiet HEAD || (git commit -m "auto-format & go mod tidy [skip ci]"
+    - git add . && git diff-index --quiet HEAD || git commit -m "auto-format & go mod tidy [skip ci]"
     - git push ci_origin HEAD:"${TARGET_BRANCH}" -o ci.skip
 
     - golangci-lint run ./...
