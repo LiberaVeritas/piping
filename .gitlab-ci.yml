@@ -21,15 +21,7 @@ lint:
         - internal/**/*
   tags:
     - dockter
-  before_script:
-    - git remote set-url origin "https://oauth2:${CI_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
   script:
-    - go mod tidy
-    - golangci-lint fmt ./...
-  
-    - TARGET_BRANCH=${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME:-$CI_COMMIT_BRANCH}
-    - git add . && git diff-index --quiet HEAD || (git commit -m "auto-format & go mod tidy [skip ci]" && git push origin HEAD:$TARGET_BRANCH)
-    
     - golangci-lint run ./...
 
 test:
