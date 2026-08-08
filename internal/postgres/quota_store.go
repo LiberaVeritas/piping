@@ -10,14 +10,36 @@ import (
 
 func (s *Store) RemainingQuota(ctx context.Context, username string) (int, error) {
 	var remaining int64
-
-	if err := s.pool.QueryRow(ctx, `
+	err := s.pool.QueryRow(ctx, `
 		SELECT COALESCE((SELECT SUM(g.amount) FROM semester_grant g WHERE g.user_id = $1), 0)
 		     - COALESCE((SELECT SUM(j.cost) FROM job j WHERE j.user_id = $1 AND j.state::text = ANY($2)), 0)`,
-		username, job.QuotaDeductingStateNames()).Scan(&remaining); err != nil {
-		return 0, fmt.Errorf("deriving remaining quota for %q: %w", username, err)
+		username, job.QuotaDeductingStateNames()).Scan(&remaining)
+	if err != nil {
+		return 0, fmt.Errorf("db query grant amount and job cost: %w", err)
 	}
 	return int(remaining), nil
+}
+
+func (s *Store) GrantedQuota(ctx context.Context, username string) (int, error) {
+	var granted int64
+	err := s.pool.QueryRow(ctx, `
+		SELECT COALESCE((SELECT SUM(g.amount) FROM semester_grant g WHERE g.user_id = $1), 0)`,
+		username).Scan(&granted)
+	if err != nil {
+		return 0, fmt.Errorf("db query grant amount: %w", err)
+	}
+	return int(granted), nil
+}
+
+func (s *Store) SpentQuota(ctx context.Context, username string) (int, error) {
+	var spent int64
+	err := s.pool.QueryRow(ctx, `
+		SELECT COALESCE((SELECT SUM(j.cost) FROM job j WHERE j.user_id = $1 AND j.state::text = ANY($2)), 0)`,
+		username, job.QuotaDeductingStateNames()).Scan(&spent)
+	if err != nil {
+		return 0, fmt.Errorf("db query job cost: %w", err)
+	}
+	return int(spent), nil
 }
 
 // upsert semester or return default quota of existing semester if it already exists
@@ -25,49 +47,26 @@ func (s *Store) RemainingQuota(ctx context.Context, username string) (int, error
 func (s *Store) EnsureSemester(ctx context.Context, id int, defaultQuota int) (int, error) {
 	var effective int
 	name := semester.Name(id)
-
-	if err := s.pool.QueryRow(ctx, `
+	err := s.pool.QueryRow(ctx, `
 		INSERT INTO semester (id, name, default_quota)
 		VALUES ($1, $2, $3)
 		ON CONFLICT (id) DO UPDATE SET id = EXCLUDED.id
 		RETURNING default_quota`,
-		id, name, defaultQuota).Scan(&effective); err != nil {
-		return 0, fmt.Errorf("ensuring semester %d: %w", id, err)
+		id, name, defaultQuota).Scan(&effective)
+	if err != nil {
+		return 0, fmt.Errorf("db query semester: %w", err)
 	}
 	return effective, nil
 }
 
 func (s *Store) EnsureGrant(ctx context.Context, username string, semesterID, amount int) error {
-
-	if _, err := s.pool.Exec(ctx, `
+	_, err := s.pool.Exec(ctx, `
 		INSERT INTO semester_grant (user_id, semester_id, amount)
 		VALUES ($1, $2, $3)
 		ON CONFLICT (user_id, semester_id) DO NOTHING`,
-		username, semesterID, amount); err != nil {
-		return fmt.Errorf("creating grant for %s semester %d: %w", username, semesterID, err)
+		username, semesterID, amount)
+	if err != nil {
+		return fmt.Errorf("db op grant: %w", err)
 	}
 	return nil
-}
-
-func (s *Store) ListGrantSemesters(ctx context.Context, username string) ([]int, error) {
-	rows, err := s.pool.Query(ctx,
-		`SELECT semester_id FROM semester_grant WHERE user_id = $1`, username)
-	if err != nil {
-		return nil, fmt.Errorf("listing grant semesters for %s: %w", username, err)
-	}
-	defer rows.Close()
-	var out []int
-	for rows.Next() {
-		var t int
-
-		if err := rows.Scan(&t); err != nil {
-			return nil, fmt.Errorf("scanning grant semester: %w", err)
-		}
-		out = append(out, t)
-	}
-	err = rows.Err()
-	if err != nil {
-		return nil, fmt.Errorf("iterating grant semesters: %w", err)
-	}
-	return out, nil
 }

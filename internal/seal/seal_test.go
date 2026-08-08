@@ -107,7 +107,7 @@ func TestLabelSeparation(t *testing.T) {
 		var out blob
 		err = s.OpenAsJSON(l2, sealed, &out)
 		if err == nil {
-			rt.Fatalf("blob sealed under %q opened under %q", l1, l2)
+			rt.Fatalf("blob sealed under %s opened under %s", l1, l2)
 		}
 	})
 }

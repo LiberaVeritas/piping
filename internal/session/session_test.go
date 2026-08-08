@@ -1,6 +1,7 @@
 package session_test
 
 import (
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -23,14 +24,14 @@ func newSealer() *seal.Sealer {
 
 func manager(t *testing.T, ttl time.Duration) *session.Manager {
 	t.Helper()
-	return session.NewManager(newSealer(), ttl)
+	return session.NewManager(newSealer(), ttl, slog.Default())
 }
 
 func managerRapid(rt *rapid.T) *session.Manager {
 	ttl := time.Duration(rapid.IntRange(1, 86400).Draw(rt, "ttlSec")) * time.Second
 	rt.Helper()
 	s := newSealer()
-	return session.NewManager(s, ttl)
+	return session.NewManager(s, ttl, slog.Default())
 }
 
 func requestWithCookies(w *httptest.ResponseRecorder) *http.Request {
@@ -122,7 +123,7 @@ func TestNoCookieRejected(t *testing.T) {
 
 func TestStateBlobRejectedAsSession(t *testing.T) {
 	s, _ := seal.NewSealer([]byte("0123456789abcdef0123456789abcdef"))
-	m := session.NewManager(s, time.Hour)
+	m := session.NewManager(s, time.Hour, slog.Default())
 	stateBlob, _ := s.SealAsJSON("oidc_state", map[string]string{"original_url": "/", "pkce_verifier": "x"})
 	r := httptest.NewRequest("GET", "/", nil)
 	// #nosec G124
@@ -130,5 +131,15 @@ func TestStateBlobRejectedAsSession(t *testing.T) {
 
 	if _, err := m.FromRequest(r); err == nil {
 		t.Fatal("sealed state accepted as session")
+	}
+}
+
+func TestClearDeletes(t *testing.T) {
+	m := manager(t, time.Hour)
+	w := httptest.NewRecorder()
+	m.Clear(w)
+	c := w.Result().Cookies()[0]
+	if c.MaxAge != -1 || c.Value != "" {
+		t.Errorf("Clear must set MaxAge=-1 empty value, got %+v", c)
 	}
 }

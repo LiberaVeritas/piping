@@ -22,11 +22,11 @@ func Current(t time.Time) int {
 func Code(semester string) (int, error) {
 	season, year, ok := strings.Cut(strings.TrimSpace(semester), " ")
 	if !ok {
-		return 0, fmt.Errorf("parsing semester %s", semester)
+		return 0, fmt.Errorf("parsing semester %q", semester)
 	}
 	y, err := strconv.Atoi(year)
 	if err != nil {
-		return 0, fmt.Errorf("parsing year %s: %w", year, err)
+		return 0, fmt.Errorf("parsing year %q: %w", year, err)
 	}
 	var month int
 	switch season {

@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strconv"
@@ -40,7 +41,12 @@ func run(ctx context.Context, getenv func(string) string, logw io.Writer) error 
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	log := slog.New(slog.NewTextHandler(logw, nil))
+	logLevel := slog.LevelVar{}
+	if err := logLevel.UnmarshalText([]byte(envStr(getenv, "LOG_LEVEL", slog.LevelInfo.String()))); err != nil {
+		fmt.Fprint(logw, fmt.Errorf("failed to parse LOG_LEVEL env var %q: %w", getenv("LOG_LEVEL"), err))
+		logLevel.Set(slog.LevelInfo)
+	}
+	log := slog.New(slog.NewTextHandler(logw, &slog.HandlerOptions{Level: &logLevel}))
 
 	listenAddr := envStr(getenv, "LISTEN_ADDR", ":8080")
 	databaseURL, err := envRequired(getenv, "DATABASE_URL")
@@ -71,11 +77,11 @@ func run(ctx context.Context, getenv func(string) string, logw io.Writer) error 
 	if err != nil {
 		return err
 	}
-	maxPages, err := envInt(getenv, "MAX_PAGES", 200)
+	maxPages, err := envInt(getenv, "MAX_PAGES", 100)
 	if err != nil {
 		return err
 	}
-	maxCopies, err := envInt(getenv, "MAX_COPIES", 100)
+	maxCopies, err := envInt(getenv, "MAX_COPIES", 50)
 	if err != nil {
 		return err
 	}
@@ -132,7 +138,7 @@ func run(ctx context.Context, getenv func(string) string, logw io.Writer) error 
 	}
 
 	if sweepAge <= sendTimeout {
-		return fmt.Errorf("SWEEP_AGE_BOUND %s must exceed SEND_TIMEOUT %s", sweepAge, sendTimeout)
+		return fmt.Errorf("SWEEP_AGE_BOUND %q must exceed SEND_TIMEOUT %q", sweepAge, sendTimeout)
 	}
 	if sweepAge < 2*sendTimeout {
 		log.Warn("leave more margin", "sweep_age_bound", sweepAge, "send_timeout", sendTimeout)
@@ -150,7 +156,7 @@ func run(ctx context.Context, getenv func(string) string, logw io.Writer) error 
 
 	store := postgres.New(pool, log)
 	analyzer := ghostscript.New(colorThreshold, log)
-	sender := smb.New(smbAuthFile, log)
+	sender := smb.New(smbAuthFile)
 
 	vctx, vcancel := context.WithTimeout(ctx, 5*time.Second)
 	err = analyzer.VerifyDevice(vctx)
@@ -159,9 +165,9 @@ func run(ctx context.Context, getenv func(string) string, logw io.Writer) error 
 		return fmt.Errorf("ghostscript unusable: %w", err)
 	}
 
-	deliverer := app.NewDeliverer(sender, store, store, sendTimeout, maxSendAttempts, log)
+	deliverer := app.NewDeliverer(sender, store, store, 500*time.Millisecond, sendTimeout, maxSendAttempts, log)
 	submitter := app.NewSubmitter(analyzer, store, store, deliverer,
-		quota.Rates{ColorRate: colorRate}, maxBytes, maxPages, maxCopies)
+		quota.Rates{ColorRate: colorRate}, maxBytes, maxPages, maxCopies, log)
 	sweeper := app.NewSweeper(store, sweepEvery, sweepAge, sweepBatch, log)
 
 	sealer, err := seal.NewSealer(sealKey)
@@ -174,14 +180,30 @@ func run(ctx context.Context, getenv func(string) string, logw io.Writer) error 
 		ClientSecret: oidcClientSecret,
 		Scopes:       oidcScopes,
 		Sealer:       sealer,
+		Log:          log,
 	}
 
-	oidc, err := oidc.NewFromDiscovery(ctx, cfg, oidcDiscoveryURL)
+	oidcClient, err := oidc.NewFromDiscovery(ctx, cfg, oidcDiscoveryURL)
 	if err != nil {
-		return err
+		log.Warn("oidc discovery", "err", err)
+		authEndpoint, err := envRequired(getenv, "OIDC_AUTHORIZATION_ENDPOINT")
+		if err != nil {
+			return err
+		}
+		tokenEndpoint, err := envRequired(getenv, "OIDC_TOKEN_ENDPOINT")
+		if err != nil {
+			return err
+		}
+		userEndpoint, err := envRequired(getenv, "OIDC_USER_INFO_ENDPOINT")
+		if err != nil {
+			return err
+		}
+		oidcClient, err = oidc.New(ctx, cfg, authEndpoint, tokenEndpoint, userEndpoint)
+		if err != nil {
+			return err
+		}
 	}
-	session := session.NewManager(sealer, sessionTTL)
-
+	session := session.NewManager(sealer, sessionTTL, log)
 	prov := app.NewProvisioner(store, defaultQuota, log)
 
 	go sweeper.Run(ctx)
@@ -189,16 +211,16 @@ func run(ctx context.Context, getenv func(string) string, logw io.Writer) error 
 	ready := func(c context.Context) error {
 		return pool.Ping(c)
 	}
-	srv := &http.Server{
-		Addr:              listenAddr,
-		Handler:           web.NewServer(submitter, prov, oidc, session, ready, int64(maxBytes), log).Routes(),
-		ReadHeaderTimeout: 2 * time.Second,
+	u, _ := url.Parse(oidcRedirectURI)
+	origin := u.Scheme + "://" + u.Host
+	srv, err := web.NewServer(submitter, prov, store, oidcClient, session, ready, int64(maxBytes), maxCopies, origin, log)
+	if err != nil {
+		return fmt.Errorf("creating web server: %w", err)
 	}
-
-	log.Info("piping listening", "addr", listenAddr)
-	err = srv.ListenAndServe()
-	if err != nil && !errors.Is(err, http.ErrServerClosed) {
-		return fmt.Errorf("http server: %w", err)
+	httpSrv := &http.Server{
+		Addr:              listenAddr,
+		Handler:           srv.Routes(),
+		ReadHeaderTimeout: 2 * time.Second,
 	}
 
 	var wg sync.WaitGroup
@@ -210,10 +232,16 @@ func run(ctx context.Context, getenv func(string) string, logw io.Writer) error 
 		shutCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 		defer cancel()
 
-		if err := srv.Shutdown(shutCtx); err != nil {
+		if err := httpSrv.Shutdown(shutCtx); err != nil {
 			log.Error("shutting down http server", "err", err)
 		}
 	}()
+
+	log.Info("piping listening", "addr", listenAddr)
+	err = httpSrv.ListenAndServe()
+	if err != nil && !errors.Is(err, http.ErrServerClosed) {
+		return fmt.Errorf("http server: %w", err)
+	}
 
 	wg.Wait()
 	log.Info("piping stopped")

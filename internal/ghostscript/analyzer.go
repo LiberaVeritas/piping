@@ -25,7 +25,8 @@ func New(colorSpreadThreshold float64, log *slog.Logger) *Analyzer {
 }
 
 func (a *Analyzer) VerifyDevice(ctx context.Context) error {
-	cmd := exec.CommandContext(ctx, a.gsPath, "-dNOPAUSE", "-dBATCH", "-dSAFER", "-dQUIET", "-q", "-sDEVICE=inkcov")
+	cmd := exec.CommandContext(ctx,
+		a.gsPath, "-dNOPAUSE", "-dBATCH", "-dSAFER", "-dQUIET", "-q", "-sDEVICE=inkcov")
 	out, err := cmd.CombinedOutput()
 	if err != nil && len(out) == 0 {
 		return fmt.Errorf("running gs to verify inkcov device: %w", err)
@@ -56,7 +57,9 @@ func (a *Analyzer) CountPages(ctx context.Context, doc []byte) (pages, colorPage
 		return 0, 0, fmt.Errorf("closing temp file: %w", err)
 	}
 
-	cmd := exec.CommandContext(ctx, a.gsPath, "-sOutputFile=%stdout%", "-dBATCH", "-dNOPAUSE", "-dQUIET", "-q", "-dSAFER", "-sDEVICE=inkcov", path)
+	cmd := exec.CommandContext(ctx,
+		a.gsPath, "-sOutputFile=%stdout%", "-dBATCH", "-dNOPAUSE",
+		"-dQUIET", "-q", "-dSAFER", "-sDEVICE=inkcov", path)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -64,7 +67,7 @@ func (a *Analyzer) CountPages(ctx context.Context, doc []byte) (pages, colorPage
 	if runErr := cmd.Run(); runErr != nil {
 		var exitErr *exec.ExitError
 		if errors.As(runErr, &exitErr) {
-			return 0, 0, fmt.Errorf("gs rejected document (%s): %w", stderr.String(), pdf.ErrUnreadable)
+			return 0, 0, fmt.Errorf("gs rejected document (%q): %w", stderr.String(), pdf.ErrUnreadable)
 		}
 		return 0, 0, fmt.Errorf("running gs: %w", runErr)
 	}
@@ -80,6 +83,7 @@ func (a *Analyzer) CountPages(ctx context.Context, doc []byte) (pages, colorPage
 }
 
 // a page is color iff the chroma channels' spread exceeds threshold.
+// TODO maybe also use ink_cov just to catch small colored dot
 func parseInkcov(out string, threshold float64) (pages, colorPages int, err error) {
 	matches := cmykLine.FindAllStringSubmatch(out, -1)
 	for _, m := range matches {

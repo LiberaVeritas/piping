@@ -1,0 +1,136 @@
+{{define "content"}}
+<aside>
+	<section id="quota">
+		<h2>quota</h2>
+		{{if gt .Granted 0}}
+		<progress value="{{.Remaining}}" max="{{.Granted}}" aria-label="remaining quota"></progress>
+		<span data-role="subtext">{{.Remaining}} / {{.Granted}} pages left</span>
+		{{else}}
+		<span>No quota</span>
+		{{end}}
+	</section>
+	<section id="recent">
+		<details open hx-on:load="
+				const isMobile = window.matchMedia('(max-width: 48rem)');
+				if (isMobile.matches) {
+					this.open = false;
+				} else {
+					this.open = true;
+				}
+			">
+			<summary><h2>recent</h2></summary>
+			{{range .Recent}}
+			<div data-role="job-row">
+				<span>{{.DocumentName}}</span>
+				<span>{{.State}}</span>
+			</div>
+			<small data-role="subtext">{{.Destination}} &middot; {{.TimeSince}} ago</small>
+			<hr/>
+			{{else}}
+			<span>No recent jobs</span>
+			{{end}}
+		</details>
+	</section>
+</aside>
+<main>
+	<section id="upload">
+		<h2>upload</h2>
+		<label id="file-dropbox" data-role="file-upload" for="file-input">
+			<input type="file" id="file-input" form="form" name="document" accept=".pdf,application/pdf" required data-maxsize="{{.MaxSize}}" hx-preserve 
+				hx-on:change="
+					const file = this.files[0];
+					const maxSize = this.getAttribute('data-maxsize');
+					if (file && file.size > maxSize) {
+						document.querySelector('#file-status-text').textContent = 'File exceeds size limit of ' + (maxSize / 1e6).toFixed(1) + 'MB';
+						this.value = '';
+						return;
+					}
+					else if (!(await isPdf(file))) {
+						document.querySelector('#file-status-text').textContent = 'File is not a valid PDF';
+						this.value = '';
+						return;
+					}
+					this.hidden = true;
+					document.querySelector('#file-dropbox').hidden = true;
+					document.querySelector('#file-info').hidden = false;
+					document.querySelector('#file-name').textContent = file.name;
+				" 
+				hx-on:dragover="
+					event.preventDefault();
+					event.dataTransfer.dropEffect = 'copy';
+			"/>
+			<strong>Choose a PDF</strong>
+			<small data-role="subtext" id="file-status-text">No file selected</small>
+		</label>
+		<div id="file-info" hidden>
+			<span id="file-name">filename</span>
+			<button data-role="file-remove" type="button" 
+				hx-on:click="
+					document.querySelector('#file-input').value = '';
+					document.querySelector('#file-info').hidden = true;
+					document.querySelector('#file-dropbox').hidden = false;
+			">Remove</button>
+		</div>
+	</section>
+	<section id="queue">
+		<h2>queue</h2>
+		<div id="queue-list">
+			{{range .Queues}}
+			<label data-role="queue-item">
+				<input type="radio" name="queue_id" form="form" value="{{.ID}}" required/>
+				<span>{{.Name}}</span>
+			</label>
+			{{end}}
+		</div>
+	</section>
+	<section id="options">
+		<h2>options</h2>
+		<div id="print-options">
+			<label data-role="print-option">
+				<input type="checkbox" name="color"/>
+				<span>Color</span>
+			</label>
+			<label data-role="print-option">
+				<input type="checkbox" name="duplex" checked/>
+				<span>Double sided</span>
+			</label>
+		</div>
+		<fieldset data-role="stepper">
+			<legend>Copies</legend>
+			<button type="button" aria-label="Decrease copies" id="decrement"
+				hx-on:click="
+					const c = document.getElementById('copies');
+					c.value = Math.max(1, parseInt(c.value, 10)-1);
+			">&minus;
+			</button>
+ 			<input id="copies" type="text" form="form" value="1" name="copies" inputmode="numeric" pattern="[0-9]*" data-maxcopies="{{.MaxCopies}}"
+				hx-on:change="
+					const maxCopies = this.getAttribute('data-maxcopies');
+					if (Number.isNaN(parseInt(this.value, 10))) {
+						this.value = 1;
+						return;
+					}
+					if (this.value < 1) {
+						this.value = 1;
+					}
+					if (this.value > maxCopies) {
+						this.value = maxCopies;
+					}
+			"/>
+			<button type="button" aria-label="Increase copies" id="increment"
+				hx-on:click="
+					const c = document.querySelector('#copies');
+					const maxCopies = c.getAttribute('data-maxcopies');
+					c.value = Math.min(maxCopies, parseInt(c.value, 10)+1);
+			">&plus;
+			</button>
+		</fieldset>
+	</section>
+	<form id="form" hx-encoding="multipart/form-data" hx-post="/job" hx-indicator="#submit-indicator" hx-target="body" 
+		hx-on::after-request="if(event.detail.successful) this.reset()">
+		<div data-role="submission">
+			<button type="submit" hx-on:click="this.setAttribute('data-role', 'submitting');">Submit<span id="submit-indicator" class="htmx-indicator">ting...</span></button>
+		</div>
+	</form>
+</main>
+{{end}}

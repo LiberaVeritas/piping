@@ -10,6 +10,7 @@ RUN CGO_ENABLED=0 go build -o piping piping/cmd/piping
 
 FROM alpine:3.24
 COPY --from=builder /app/piping /usr/local/bin/
+ENV TZ="America/Toronto"
 RUN apk add --no-cache ghostscript samba-client ca-certificates && adduser -D -H piping
 EXPOSE 8080
 USER piping

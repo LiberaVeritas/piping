@@ -1,0 +1,26 @@
+{{define "content"}}
+{{template "job-table" .Jobs}}
+{{end}}
+
+{{define "job-table"}}
+<main>
+<table id="job-table">
+	<thead><tr><th>Submitted</th><th>Document</th><th>Printer</th><th>Pages</th><th>Copies</th><th>Cost</th><th>Status</th></tr></thead>
+	<tbody>
+		{{range .}}
+		<tr>
+			<td>{{.SubmittedAt.Local.Format "02 Jan 15:04"}}</td>
+			<td>{{.DocumentName}}</td>
+			<td>{{.Destination}}</td>
+			<td>{{.Pages}}</td>
+			<td>{{.Copies}}</td>
+			<td>{{.Cost}}</td>
+			<td>{{.State}}</td>
+		</tr>
+		{{else}}
+		<tr><td colspan="7">No jobs yet.</td></tr>
+		{{end}}
+	</tbody>
+</table>
+</main>
+{{end}}

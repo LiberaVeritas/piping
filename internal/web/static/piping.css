@@ -1,0 +1,401 @@
+@font-face {
+	font-family: "Exo 2";
+	src: url("/static/fonts/Exo2.woff2") format("woff2");
+	font-weight: 100 900;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+*:not(dialog) {
+  margin: 0;
+}
+
+#logo {
+	width: 3rem;
+}
+
+body {
+  min-height: 100vh;
+  line-height: 1.5;
+	gap: 1rem;
+	font-family: "Exo 2", system-ui, sans-serif;
+}
+
+h1, h2, h3, h4, button, input, label {
+  line-height: 1.1;
+	font-family: inherit;
+}
+
+img, picture {
+  max-width: 100%;
+  display: block;
+}
+
+input, button, textarea, select {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+td, th {
+	font-variant-numeric: tabular-nums;
+}
+
+[hidden] {
+	display: none !important;
+}
+
+
+
+body {
+	display: grid;
+	align-items: start;
+	gap: 1rem;
+	margin-inline: clamp(1rem, 5vw, 6rem);
+
+	grid-template-columns: minmax(0, 1fr);
+	grid-template-areas:
+		"header"
+		"quota"
+		"upload"
+		"queue"
+		"options"
+		"recent";
+}
+
+#wordmark {
+	display: none;
+}
+
+header    { grid-area: header; }
+#quota    { grid-area: quota; }
+#upload   { grid-area: upload; }
+#queue    { grid-area: queue; }
+#options  { grid-area: options; }
+#recent   { grid-area: recent; }
+ 
+@media (min-width: 48rem) {
+	body {
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		grid-template-areas:
+			"header header"
+			"quota  upload"
+			"recent queue"
+			"recent options"
+			"recent .";
+	}
+	#wordmark {
+		display: flex;
+	}
+}
+
+small {
+	color: color-mix(in srgb, CanvasText 55%, transparent);
+}
+
+hr {
+	color: color-mix(in srgb, CanvasText 15%, transparent);
+	background-color: color-mix(in srgb, CanvasText 15%, transparent);
+	border: none;
+	height: 1px;
+	margin-block: 0.5rem;
+}
+
+span:not([data-role="full"]) {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	min-width: 0;
+	white-space: nowrap;
+}
+
+progress {
+	width: 100%;
+}
+
+
+nav a {
+	text-decoration: none;
+	font-size: 125%;
+	text-align: center;
+	color: LinkText;
+}
+
+nav {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding-block: 1rem;
+}
+
+nav li {
+	display: flex;
+	align-items: center;
+	padding-block: 1rem;
+}
+
+nav ul, nav ol {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	gap: 1rem;
+}
+
+body {
+	margin-inline: 5vw;
+}
+
+section {
+	border: 1px solid color-mix(in srgb, CanvasText 30%, transparent);
+	border-radius: 0.75rem;
+	padding: 1.5rem 2rem 2rem 2rem;
+}
+
+aside > * + *,
+main > * + *,
+section > * + * {
+	margin-block-start: 1rem;
+}
+
+span[data-role="subtext"],
+small[data-role="subtext"] {
+	margin-block-start: 0;
+	display: block;
+}
+
+div:has(> span) {
+	display: flex;
+	width: 100%;
+	justify-content: space-between;
+	gap: 1rem;
+}
+
+div[data-role="job-row"] {
+	margin-block: 0.5rem;
+}
+
+section > h2,
+summary > h2 {
+	font-variant: small-caps;
+}
+
+section ul {
+	justify-content: space-between;
+	width: 100%;
+}
+
+summary { 
+	cursor: pointer; 
+	list-style-position: outside; 
+}
+summary h2 { 
+	display: inline; 
+}
+details[open] > summary { 
+	margin-block-end: 1rem; 
+}
+
+label[data-role="file-upload"] {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	margin-inline: auto;
+	padding: 2rem 1.5rem;
+	gap: 0.35rem;
+	border: 2px dashed color-mix(in srgb, CanvasText 15%, transparent);
+	border-radius: 0.75rem;
+	cursor: pointer;
+	max-width: 24rem;
+	background: color-mix(in srgb, CanvasText 3%, transparent);
+	overflow: hidden;
+}
+
+input[type="file"]::file-selector-button {
+	cursor: pointer;
+}
+
+label[data-role="file-upload"] input[type="file"],
+label[data-role="queue-item"] input[type="radio"],
+label[data-role="print-option"] input[type="checkbox"] {
+	display: block;
+	opacity: 0;
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	cursor: pointer;
+	z-index: 10;
+}
+
+label[data-role="file-upload"]::before {
+	content: "📄";
+	content: "📄" / "";
+	font-size: 2.4rem;
+}
+
+label[data-role="file-upload"]:hover,
+label[data-role="file-upload"]:focus-within {
+	border-color: color-mix(in srgb, CanvasText 40%, transparent);
+	background: color-mix(in srgb, CanvasText 8%, transparent);
+	transition: all 0.1s ease;
+}
+
+#file-name::before {
+	content: "📄";
+	content: "📄" / "";
+	font-size: 2.4rem;
+}
+
+#file-name {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+#file-info {
+	display: flex;
+	width: 100%;
+	justify-content: space-between;
+	align-items: center;
+}
+
+label[data-role="queue-item"] {
+	display: flex;
+	position: relative;
+	border: 1px solid color-mix(in srgb, CanvasText 30%, transparent);
+	border-radius: 0.5rem;
+	padding: 1rem;
+	width: 100%;
+	align-items: center;
+  justify-content: center;
+	overflow: hidden;
+	line-height: 1.3;
+}
+
+#queue-list, #print-options {
+	display: grid;
+	grid-template-columns: repeat(auto-fit,minmax(200px,1fr)); 
+	gap: 2rem;
+}
+
+label[data-role="queue-item"]:has(input:checked) {
+	border-color: AccentColor;
+	outline: 1px solid AccentColor;
+}
+
+label[data-role="queue-item"]:has(input[type="radio"]:hover:not(:checked):not(:disabled)),
+label[data-role="queue-item"]:has(input[type="radio"]:focus-within:not(:checked):not(:disabled)){
+  border-color: AccentColor;
+	transition: all 0.1s ease;
+}
+
+label[data-role="queue-item"]:has(input[type="radio"]:disabled) {
+  opacity: 0.5;
+	cursor: default;
+  border-color: color-mix(in srgb, CanvasText 30%, transparent);
+}
+
+label[data-role="queue-item"] input[type="radio"]:disabled {
+	cursor: default;
+}
+
+label[data-role="print-option"] {
+  position: relative;
+  display: flex;
+	justify-content: center;
+	align-items: center;
+  width: 100%;
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, CanvasText 30%, transparent);
+  border-radius: 0.75rem;
+  cursor: pointer;
+	line-height: 1.3;
+}
+
+
+label[data-role="print-option"]:has(input:checked) {
+	border-color: AccentColor;
+	outline: 1px solid AccentColor;
+}
+
+label[data-role="print-option"]:has(input[type="checkbox"]:hover:not(:checked)),
+label[data-role="print-option"]:has(input[type="checkbox"]:focus-within:not(:checked)){
+  border-color: AccentColor;
+	transition: all 0.1s ease;
+}
+
+#decrement,
+#increment {
+	display: flex;
+	padding-inline: 0.6rem;
+	align-items: center;
+}
+
+fieldset[data-role="stepper"] {
+	display: flex;
+	align-items: stretch;
+	gap: 0.5rem;
+	border: none;
+	padding-inline: 0;
+}
+
+input[name="copies"] {
+	width: 3rem;
+}
+
+button[type="submit"] {
+	width: 100px;
+	min-width: 10rem;
+	height: 2rem;
+	cursor: pointer;
+	color: white;
+}
+
+div[data-role="submission"] {
+	display: flex;
+	justify-content: center;
+}
+
+form:invalid button[type="submit"],
+button[data-role="submitting"] {
+  opacity: 0.5;
+  cursor: default;
+	pointer-events: none;
+
+}
+
+.htmx-indicator {
+	display: none;
+}
+
+button[data-role="submitting"] span {
+	display: inline;
+	visibility: visible;
+	opacity: 1;
+}
+
+
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+td, th {
+  border: 1px solid CanvasText;
+  padding: 1rem;
+}
+
+tr:nth-child(even){background-color: color-mix(in srgb, CanvasText 5%, transparent);}
+
+tr:hover {background-color: color-mix(in srgb, CanvasText 10%, transparent);}
+
+th {
+  padding-top: 1.5rem;
+  padding-bottom: 1.5rem;
+  text-align: left;
+  background-color: color-mix(in srgb, CanvasText 20%, transparent);
+  color: CanvasText;
+}

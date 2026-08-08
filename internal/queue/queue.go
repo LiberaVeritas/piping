@@ -50,7 +50,7 @@ func PolicyFromString(s string) (LoadBalancerPolicy, error) {
 			return p, nil
 		}
 	}
-	return UnknownPolicy, fmt.Errorf("unknown load balancer policy %q", s)
+	return UnknownPolicy, fmt.Errorf("unknown policy %q", s)
 }
 
 type LoadBalancer interface {
