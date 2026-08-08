@@ -21,15 +21,15 @@ lint:
   tags:
     - gitlab
   before_script:
-    - git remote add ci_origin "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" || echo
-    - git remote set-url --push ci_origin "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+    #- git remote add ci_origin "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" || echo
+    #- git remote set-url --push ci_origin "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
     - TARGET_BRANCH=${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME:-$CI_COMMIT_BRANCH}
   script:
     - go mod tidy
     - golangci-lint fmt ./...
   
     - git add . && git diff-index --quiet HEAD || git commit -m "auto-format & go mod tidy [skip ci]"
-    - git push ci_origin HEAD:"${TARGET_BRANCH}" -o ci.skip
+    - git push  HEAD:"${TARGET_BRANCH}" -o ci.skip
 
     - golangci-lint run ./...
 
