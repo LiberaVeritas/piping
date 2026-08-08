@@ -29,7 +29,6 @@ lint:
     - golangci-lint fmt ./...
   
     - git add . && git diff-index --quiet HEAD || git commit -m "auto-format & go mod tidy [skip ci]"
-    - for i in 1 2 3; do git push origin HEAD:"${TARGET_BRANCH}" -o ci.skip && break; sleep 2; done
     - git push origin HEAD:"${TARGET_BRANCH}" -o ci.skip
 
     - golangci-lint run ./...
