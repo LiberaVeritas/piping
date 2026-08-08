@@ -5,13 +5,15 @@ stages:
 
 variables:
   GOEXPERIMENT: "jsonv2"
-  GIT_AUTHOR_NAME: "$GITLAB_USER_NAME (via pipeline)"
-  GIT_AUTHOR_EMAIL: $GITLAB_USER_EMAIL
-  GIT_COMMITTER_NAME: "$GITLAB_USER_NAME (via pipeline)"
-  GIT_COMMITTER_EMAIL: $GITLAB_USER_EMAIL
 
 lint:
   stage: lint
+  image: golang/golangci-lint:v2.12.2-alpine
+  variables:
+    GIT_AUTHOR_NAME: "$GITLAB_USER_NAME (via pipeline)"
+    GIT_AUTHOR_EMAIL: $GITLAB_USER_EMAIL
+    GIT_COMMITTER_NAME: "$GITLAB_USER_NAME (via pipeline)"
+    GIT_COMMITTER_EMAIL: $GITLAB_USER_EMAIL
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -19,8 +21,9 @@ lint:
         - cmd/**/*
         - internal/**/*
   tags:
-    - gitlab
+    - dockter
   before_script:
+    - apk add --no-cache git 
     - git remote add ci_origin "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" || echo
     - git remote set-url --push ci_origin "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
     - TARGET_BRANCH=${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME:-$CI_COMMIT_BRANCH}
@@ -36,6 +39,14 @@ lint:
 test:
   stage: test
   image: golang:1.26
+  services:
+    - postgres
+  variables:
+    POSTGRES_USER: "piping"
+    POSTGRES_PASSWORD: "piping"
+    POSTGRES_DB: "piping_test"
+    POSTGRES_HOST_AUTH_METHOD: trust
+    TEST_DATABASE_URL: "postgres://piping:piping@postgres:5432/piping_test"
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       changes:
