@@ -20,7 +20,7 @@ lint:
         - cmd/**/*
         - internal/**/*
   tags:
-    - dockter
+    - golangci
   before_script:
     - git remote set-url --push origin "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
     - TARGET_BRANCH=${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME:-$CI_COMMIT_BRANCH}
