@@ -5,10 +5,6 @@ stages:
 
 variables:
   GOEXPERIMENT: "jsonv2"
-  GIT_AUTHOR_NAME: "GitLab CI Bot"
-  GIT_AUTHOR_EMAIL: "ci-bot@noreply.${CI_SERVER_HOST}"
-  GIT_COMMITTER_NAME: "GitLab CI Bot"
-  GIT_COMMITTER_EMAIL: "ci-bot@noreply.${CI_SERVER_HOST}"
 
 lint:
   stage: lint
@@ -21,7 +17,18 @@ lint:
         - internal/**/*
   tags:
     - dockter
+  before_script:
+    - git remote add ci_origin "https://oauth2:${CI_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+    - git config user.name "GitLab CI Bot"
+    - git config user.email "ci-bot@noreply.${CI_SERVER_HOST}" 
   script:
+    - go mod tidy
+    - golangci-lint fmt ./...
+  
+    - TARGET_BRANCH=${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME:-$CI_COMMIT_BRANCH}
+    - git add . && git diff-index --quiet HEAD || (git commit -m "auto-format & go mod tidy [skip ci]"
+    - git push ci_origin HEAD:"${TARGET_BRANCH}" -o ci.skip
+
     - golangci-lint run ./...
 
 test:
