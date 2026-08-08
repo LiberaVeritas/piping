@@ -12,7 +12,6 @@ variables:
 
 lint:
   stage: lint
-  image: golangci/golangci-lint:v2.12.2
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -20,16 +19,16 @@ lint:
         - cmd/**/*
         - internal/**/*
   tags:
-    - golangci
+    - gitlab
   before_script:
-    - git remote set-url --push origin "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+    - git remote set-url --push ci_origin "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
     - TARGET_BRANCH=${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME:-$CI_COMMIT_BRANCH}
   script:
     - go mod tidy
     - golangci-lint fmt ./...
   
     - git add . && git diff-index --quiet HEAD || git commit -m "auto-format & go mod tidy [skip ci]"
-    - git push origin HEAD:"${TARGET_BRANCH}" -o ci.skip
+    - git push ci_origin HEAD:"${TARGET_BRANCH}" -o ci.skip
 
     - golangci-lint run ./...
 
