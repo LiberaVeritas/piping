@@ -5,3 +5,5 @@ dev
 test
 Taskfile.yml
 *.pem
+.env
+
