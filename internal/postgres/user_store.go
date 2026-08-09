@@ -55,8 +55,11 @@ func scanJobView(sc rowScanner) (job.WithDestinationName, error) {
 }
 
 func (s *Store) JobsWithDestinationForUser(ctx context.Context, username string, newerThan time.Time, limit int) ([]job.WithDestinationName, error) {
+	if (newerThan.Equal(time.Time{})) {
+		newerThan = time.Unix(0, 0)
+	}
 	rows, err := s.pool.Query(ctx, `
-		SELECT submitted_at, document_name, num_pages, copies, cost, state::text, COALESCE(d.name, 'None') FROM job
+		SELECT submitted_at, document_name, num_pages, copies, cost, state::text, COALESCE(d.name, "") FROM job
 		LEFT JOIN destination d ON destination_id = d.id
 		WHERE user_id = $1 AND submitted_at > $2 ORDER BY submitted_at DESC LIMIT $3`,
 		username, newerThan, limit)

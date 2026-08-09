@@ -11,9 +11,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/testcontainers/testcontainers-go"
-	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
-	"github.com/testcontainers/testcontainers-go/wait"
 	"pgregory.net/rapid"
 
 	"piping/internal/job"
@@ -157,57 +154,19 @@ func TestMain(m *testing.M) {
 	code := func() int {
 		ctx := context.Background()
 
-		if url := os.Getenv("TEST_DATABASE_URL"); url != "" {
-			testDBURL = url
-			if err := loadSchema(ctx, url); err != nil {
-				fmt.Fprintf(os.Stderr, "loading schema into TEST_DATABASE_URL: %v\n", err)
-				return 1
-			}
-			return m.Run()
+		url, ok := os.LookupEnv("TEST_DATABASE_URL")
+		if !ok || url == "" {
+			fmt.Fprintf(os.Stderr, "TEST_DATABASE_URL env var not set")
+			return 1
 		}
-
-		url, terminate, err := startPostgres(ctx)
-		if err != nil {
-			dbSkipMsg = fmt.Sprintf("no database available (%v); "+
-				"set TEST_DATABASE_URL or make Docker available", err)
-			return m.Run()
-		}
-		defer terminate()
 		testDBURL = url
+		if err := loadSchema(ctx, url); err != nil {
+			fmt.Fprintf(os.Stderr, "loading schema into TEST_DATABASE_URL %q: %v\n", url, err)
+			return 1
+		}
 		return m.Run()
 	}()
 	os.Exit(code)
-}
-
-func startPostgres(ctx context.Context) (url string, terminate func(), err error) {
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-	defer cancel()
-
-	container, err := tcpostgres.Run(ctx, "postgres:17-alpine",
-		tcpostgres.WithDatabase("piping_test"),
-		tcpostgres.WithUsername("piping"),
-		tcpostgres.WithPassword("piping"),
-		// optimization for disposable data
-		testcontainers.WithCmd("postgres", "-c", "fsync=off",
-			"-c", "full_page_writes=off", "-c", "synchronous_commit=off",
-			"-c", "log_lock_waits=on", "-c", "deadlock_timeout=1s"),
-		testcontainers.WithWaitStrategy(
-			wait.ForLog("database system is ready to accept connections").
-				WithOccurrence(2).WithStartupTimeout(60*time.Second)),
-	)
-	if err != nil {
-		return "", nil, err
-	}
-	url, err = container.ConnectionString(ctx, "sslmode=disable")
-	if err != nil {
-		_ = container.Terminate(ctx)
-		return "", nil, err
-	}
-	if err := loadSchema(ctx, url); err != nil {
-		_ = container.Terminate(ctx)
-		return "", nil, err
-	}
-	return url, func() { _ = container.Terminate(context.Background()) }, nil
 }
 
 func loadSchema(ctx context.Context, url string) error {

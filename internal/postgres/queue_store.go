@@ -78,7 +78,7 @@ func (s *Store) LoadBalancerPolicyForQueue(ctx context.Context, queueID int64) (
 	err := s.pool.QueryRow(ctx, `
 		SELECT policy FROM queue WHERE id = $1`, queueID).Scan(&policy)
 	if err != nil {
-		return queue.UnknownPolicy, fmt.Errorf("getting policy %q for queue: %w", policy, err)
+		return queue.UnknownPolicy, fmt.Errorf("getting policy for queue %d: %w", queueID, err)
 	}
 	return queue.PolicyFromString(policy)
 }

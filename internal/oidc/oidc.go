@@ -202,7 +202,7 @@ func (c *Client) GetUserInfo(ctx context.Context, code, state string) (UserInfo,
 	if res.StatusCode != http.StatusOK {
 		return UserInfo{}, "", fmt.Errorf("reading token response %s", res.Status)
 	}
-	c.cfg.Log.Debug("received result", "res", res)
+	c.cfg.Log.Debug("received result from token endpoint", "status", res.Status)
 
 	var token tokenResponse
 	err = json.UnmarshalRead(res.Body, &token)

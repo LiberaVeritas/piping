@@ -18,7 +18,7 @@ func (s *Store) CheckQuotaAndStore(ctx context.Context, j job.Job) (job.Job, err
 	defer tx.Rollback(ctx)
 
 	if _, err := tx.Exec(ctx, `SET LOCAL lock_timeout = '5s'`); err != nil {
-		return job.Job{}, err
+		return job.Job{}, fmt.Errorf("db set lock timeout: %w", err)
 	}
 
 	// lock the user row so concurrent txn on same user blocks
@@ -59,7 +59,7 @@ func (s *Store) CheckQuotaAndStore(ctx context.Context, j job.Job) (job.Job, err
 		return job.Job{}, fmt.Errorf("db commit txn: %w", err)
 	}
 
-	if j.State = state; state == job.QuotaInsufficient {
+	if j.State == job.QuotaInsufficient {
 		return j, fmt.Errorf("cost %d, remaining %d: %w", j.Cost, remaining, quota.ErrInsufficient)
 	}
 	return j, nil

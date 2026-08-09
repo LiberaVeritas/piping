@@ -58,7 +58,7 @@ func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 	username := sessionFrom(r.Context()).Sub
-	jobs, err := s.dash.JobsWithDestinationForUser(r.Context(), username, time.Unix(0, 0), 50)
+	jobs, err := s.dash.JobsWithDestinationForUser(r.Context(), username, time.Time{}, 50)
 	if err != nil {
 		s.log.Error("jobs list", "user", username, "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -184,12 +184,7 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) result(w http.ResponseWriter, r *http.Request, status int, title, message string) {
 	if r.Header.Get("HX-Request") == "true" {
-		// Fragment for the htmx swap target. Always 200: htmx's default is
-		// to swap only 2xx responses, and the fragment TEXT carries the
-		// error; the no-JS path below keeps honest status codes.
-		s.render(w, http.StatusOK, "result",
-			resultView{Title: title, Message: message})
-		return
+		status = http.StatusOK
 	}
 	s.render(w, status, "result", resultView{baseView: s.base(r.Context()), Title: title, Message: message})
 }

@@ -206,14 +206,19 @@ func run(ctx context.Context, getenv func(string) string, logw io.Writer) error 
 	session := session.NewManager(sealer, sessionTTL, log)
 	prov := app.NewProvisioner(store, defaultQuota, log)
 
+	build := envStr(getenv, "PIPING_BUILD", "")
+
 	go sweeper.Run(ctx)
 
 	ready := func(c context.Context) error {
 		return pool.Ping(c)
 	}
-	u, _ := url.Parse(oidcRedirectURI)
+	u, err := url.Parse(oidcRedirectURI)
+	if err != nil {
+		return fmt.Errorf("parsing oidc redirect uri %q: %w", oidcRedirectURI, err)
+	}
 	origin := u.Scheme + "://" + u.Host
-	srv, err := web.NewServer(submitter, prov, store, oidcClient, session, ready, int64(maxBytes), maxCopies, origin, log)
+	srv, err := web.NewServer(submitter, prov, store, oidcClient, session, ready, int64(maxBytes), maxCopies, origin, build, log)
 	if err != nil {
 		return fmt.Errorf("creating web server: %w", err)
 	}
@@ -238,7 +243,8 @@ func run(ctx context.Context, getenv func(string) string, logw io.Writer) error 
 	}()
 
 	log.Info("piping listening", "addr", listenAddr)
-	err = httpSrv.ListenAndServe()
+	//err = httpSrv.ListenAndServe()
+	err = httpSrv.ListenAndServeTLS("print.ctf.mcgill.ca.pem", "print.ctf.mcgill.ca-key.pem")
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("http server: %w", err)
 	}
