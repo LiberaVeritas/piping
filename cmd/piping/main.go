@@ -243,8 +243,7 @@ func run(ctx context.Context, getenv func(string) string, logw io.Writer) error 
 	}()
 
 	log.Info("piping listening", "addr", listenAddr)
-	//err = httpSrv.ListenAndServe()
-	err = httpSrv.ListenAndServeTLS("print.ctf.mcgill.ca.pem", "print.ctf.mcgill.ca-key.pem")
+	err = httpSrv.ListenAndServe()
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("http server: %w", err)
 	}
