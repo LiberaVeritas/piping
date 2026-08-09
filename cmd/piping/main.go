@@ -49,7 +49,19 @@ func run(ctx context.Context, getenv func(string) string, logw io.Writer) error 
 	log := slog.New(slog.NewTextHandler(logw, &slog.HandlerOptions{Level: &logLevel}))
 
 	listenAddr := envStr(getenv, "LISTEN_ADDR", ":8080")
-	databaseURL, err := envRequired(getenv, "DATABASE_URL")
+	dbUser, err := envRequired(getenv, "DB_USER")
+	if err != nil {
+		return err
+	}
+	dbPassword, err := envRequired(getenv, "DB_PASSWORD")
+	if err != nil {
+		return err
+	}
+	dbHost, err := envRequired(getenv, "DB_HOST")
+	if err != nil {
+		return err
+	}
+	dbName, err := envRequired(getenv, "DB_NAME")
 	if err != nil {
 		return err
 	}
@@ -144,7 +156,8 @@ func run(ctx context.Context, getenv func(string) string, logw io.Writer) error 
 		log.Warn("leave more margin", "sweep_age_bound", sweepAge, "send_timeout", sendTimeout)
 	}
 
-	pool, err := pgxpool.New(ctx, databaseURL)
+	pool, err := pgxpool.New(ctx, fmt.Sprintf("user=%s password=%s host=%s dbname=%s port=5432",
+		dbUser, dbPassword, dbHost, dbName))
 	if err != nil {
 		return fmt.Errorf("creating db pool: %w", err)
 	}

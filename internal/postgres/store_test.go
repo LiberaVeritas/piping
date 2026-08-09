@@ -230,6 +230,42 @@ func testLogger() *slog.Logger {
 	return slog.New(slog.DiscardHandler)
 }
 
+func TestRejectsJobsWithInsufficientQuota(t *testing.T) {
+	pool := testPool(t)
+	s := New(pool, testLogger())
+	ctx := context.Background()
+
+	const (
+		username = "insuffuser"
+		grant    = 10
+		cost     = 11
+	)
+
+	queueID := seedUser(t, s, username, grant)
+
+	j, err := s.CheckQuotaAndStore(ctx, job.Job{
+		Username: username, QueueID: queueID,
+		NumPages: cost, NumColorPages: 0, Copies: 1, Cost: cost,
+		DocumentName: "insufficient.pdf",
+	})
+	if !errors.Is(err, quota.ErrInsufficient) {
+		t.Errorf("unexpected error; got: %v+ want: %v+", err, quota.ErrInsufficient)
+	}
+	if j.ID == 0 {
+		t.Error("got job id of 0")
+	}
+	if j.State != job.QuotaInsufficient {
+		t.Errorf("unexpected job state; got: %q want: %s", j.State, job.QuotaInsufficient)
+	}
+	remaining, err := s.RemainingQuota(ctx, username)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if remaining != grant {
+		t.Errorf("job not printed but quota changed; got: %d want: %d", remaining, grant)
+	}
+}
+
 func TestConcurrentSubmitCannotOverspend(t *testing.T) {
 	pool := testPool(t)
 	s := New(pool, testLogger())

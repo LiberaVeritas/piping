@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - app.yaml
+
+images:
+  - name: containers.ctf.gitlab.science.mcgill.ca/ctf-general/piping
+    newTag: "43"
+
+configMapGenerator:
+  - name: piping-config
+    envs:
+      - piping.env
+  - name: piping-db-config
+    envs:
+      - db.env

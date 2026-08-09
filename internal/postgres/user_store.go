@@ -55,7 +55,7 @@ func scanJobView(sc rowScanner) (job.WithDestinationName, error) {
 }
 
 func (s *Store) JobsWithDestinationForUser(ctx context.Context, username string, newerThan time.Time, limit int) ([]job.WithDestinationName, error) {
-	if (newerThan.Equal(time.Time{})) {
+	if newerThan.Equal(time.Time{}) {
 		newerThan = time.Unix(0, 0)
 	}
 	rows, err := s.pool.Query(ctx, `

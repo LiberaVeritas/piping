@@ -46,7 +46,7 @@ func toJobViews(js []job.WithDestinationName) []jobView {
 }
 
 func toJobView(j job.WithDestinationName) jobView {
-	if (j.DestinationName) == "" {
+	if j.DestinationName == "" {
 		j.DestinationName = "None"
 	}
 	return jobView{

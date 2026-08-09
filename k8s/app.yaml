@@ -1,0 +1,163 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: piping-app
+  labels:
+    app: piping-app
+spec:
+  selector:
+    matchLabels:
+      app: piping-app
+  template:
+    metadata:
+      labels:
+        app: piping-app
+    spec:
+      imagePullSecrets:
+        - name: ctf-gitlab-ctf-general-token
+      containers:
+        - name: piping-app
+          image: containers.ctf.gitlab.science.mcgill.ca/ctf-general/piping:35
+          ports:
+            - name: piping-app-port
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: TZ
+              value: America/Toronto
+          envFrom:
+            - configMapRef:
+                name: piping-config
+            - secretRef:
+                name: piping-secret
+          volumeMounts:
+            - name: piping-secret
+              mountPath: /etc/piping/secret
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: piping-app-port
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: piping-app-port
+            initialDelaySeconds: 3
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+      volumes:
+        - name: piping-secret
+          secret:
+            secretName: piping-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: piping
+  labels:
+    app: piping-app
+spec:
+  selector:
+    app: piping-app
+  ports:
+    - name: http
+      port: 80
+      targetPort: piping-app-port
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: piping-db
+  labels:
+    app: piping-db
+spec:
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: piping-db
+  template:
+    metadata:
+      labels:
+        app: piping-db
+    spec:
+      containers:
+        - name: piping-db
+          image: postgres:18-alpine
+          ports:
+            - name: piping-db-port
+              containerPort: 5432
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: piping-db-config
+            - secretRef:
+                name: piping-db-secret
+          volumeMounts:
+            - name: piping-data
+              mountPath: /var/lib/postgresql
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-q"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-q"]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 3
+      volumes:
+        - name: piping-data
+          persistentVolumeClaim:
+            claimName: piping-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: piping-db
+  labels:
+    app: piping-db
+spec:
+  selector:
+    app: piping-db
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: piping-db-port
+      protocol: TCP
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: piping-pvc
+spec:
+  storageClassName: kxfs
+  accessModes:
+    - ReadWriteOnce
+  volumeMode: Filesystem
+  resources:
+    requests:
+      storage: 75Gi
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: piping-pv
+spec:
+  capacity:
+    storage: 75Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: kxfs
+  nfs:
+    server: kxfs.infra.ctf.mcgill.ca
+    path: "/media/export/piping"
