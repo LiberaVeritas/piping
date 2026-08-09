@@ -35,6 +35,10 @@ lint:
     - git push ci_origin HEAD:"${TARGET_BRANCH}" -o ci.skip
 
     - golangci-lint run ./...
+  artifacts:
+    paths:
+      - go.mod
+      - go.sum
 
 test:
   stage: test
@@ -54,6 +58,7 @@ test:
         - internal/**/*
   tags:
     - dockter
+  dependencies: ["lint"]
   script:
     - go test ./... -race
 
