@@ -90,7 +90,7 @@ func (d *Deliverer) Deliver(ctx context.Context, j job.Job, doc []byte) (Deliver
 		if errors.Is(err, context.DeadlineExceeded) {
 			return d.resolve(ctx, j.ID, job.PrintSent, DeliveryFailed, err)
 		}
-		d.log.Warn("send failed; retrying", "job", j.ID, "dest", dest.ID,
+		d.log.Warn("send failed", "job", j.ID, "dest", dest.ID,
 			"attempt", attempt, "of", d.maxAttempts, "cause", err)
 
 		if attempt >= d.maxAttempts {

@@ -33,20 +33,21 @@ type Server struct {
 	maxBytes  int64
 	maxCopies int
 	origin    string
+	build     string
 	log       *slog.Logger
 	pages     map[string]renderer
 }
 
 func NewServer(submit *app.Submitter, prov *app.Provisioner, dash dashboardStore,
 	oidc *oidc.Client, sess *session.Manager, ready func(context.Context) error,
-	maxUpload int64, maxCopies int, origin string, log *slog.Logger) (*Server, error) {
+	maxUpload int64, maxCopies int, origin, build string, log *slog.Logger) (*Server, error) {
 	pages, err := parsePages()
 	if err != nil {
 		return nil, err
 	}
 	return &Server{
-		submit: submit, prov: prov, dash: dash, oidc: oidc, session: sess, ready: ready,
-		maxBytes: maxUpload, maxCopies: maxCopies, origin: origin, log: log, pages: pages,
+		submit: submit, prov: prov, dash: dash, oidc: oidc, session: sess, ready: ready, maxBytes: maxUpload,
+		maxCopies: maxCopies, origin: origin, build: build, log: log, pages: pages,
 	}, nil
 }
 
@@ -113,14 +114,9 @@ func (s *Server) requireRole(requiredRole user.Role, next http.HandlerFunc) http
 
 func (s *Server) checkOrigin(next http.HandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		origin := r.Header.Get("Origin")
-		if origin == "" {
-			s.log.Debug("request received with no origin header set")
-			next(w, r)
-			return
-		}
+		origin := r.Header.Get("Sec-Fetch-Site")
 		if origin != s.origin {
-			s.log.Warn("request received from unexpected origin", "origin", origin, "expected", s.origin)
+			s.log.Warn("request received from unexpected origin", "origin", r.Header.Get("Origin"), "expected", s.origin)
 			http.Error(w, "there was an error with your request", http.StatusForbidden)
 			return
 		}

@@ -3,7 +3,6 @@ package web
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	"piping/internal/job"
@@ -34,19 +33,22 @@ func (s *Server) base(ctx context.Context) baseView {
 	return baseView{
 		Username: sess.Sub,
 		IsStaff:  user.RoleRank(sess.Role) >= user.RoleRank(user.RoleStaff),
-		Build:    os.Getenv("PIPING_BUILD"),
+		Build:    s.build,
 	}
 }
 
 func toJobViews(js []job.WithDestinationName) []jobView {
 	out := make([]jobView, 0, len(js))
 	for _, j := range js {
-		out = append(out, toJovView(j))
+		out = append(out, toJobView(j))
 	}
 	return out
 }
 
-func toJovView(j job.WithDestinationName) jobView {
+func toJobView(j job.WithDestinationName) jobView {
+	if (j.DestinationName) == "" {
+		j.DestinationName = "None"
+	}
 	return jobView{
 		SubmittedAt:  j.SubmittedAt,
 		TimeSince:    formatTimeSince(j.SubmittedAt),
