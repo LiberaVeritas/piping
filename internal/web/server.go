@@ -114,8 +114,15 @@ func (s *Server) requireRole(requiredRole user.Role, next http.HandlerFunc) http
 
 func (s *Server) checkOrigin(next http.HandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		origin := r.Header.Get("Sec-Fetch-Site")
-		if origin != s.origin {
+		site := r.Header.Get("Sec-Fetch-Site")
+		if site != "same-origin" {
+			s.log.Warn("fetch site is not same origin", "sec-fetch-site", site)
+			http.Error(w, "there was an error with your request", http.StatusForbidden)
+			return
+		}
+		origin := r.Header.Get("Origin")
+		// many valid requests don't set this header
+		if origin != "" && origin != s.origin {
 			s.log.Warn("request received from unexpected origin", "origin", r.Header.Get("Origin"), "expected", s.origin)
 			http.Error(w, "there was an error with your request", http.StatusForbidden)
 			return
