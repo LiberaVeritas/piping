@@ -43,12 +43,13 @@ func (s *Store) CheckQuotaAndStore(ctx context.Context, j job.Job) (job.Job, err
 	if remaining < int64(j.Cost) {
 		state = job.QuotaInsufficient
 	}
+	j.State = state
 
 	err = tx.QueryRow(ctx, `
 		INSERT INTO job (user_id, queue_id, state, num_pages, num_color_pages, copies, cost, color, duplex, document_name, completed_at)
 		VALUES ($1, $2, $3::job_state, $4, $5, $6, $7, $8, $9, $10, CASE WHEN $3::job_state = 'quota_insufficient' THEN now() END)
 		RETURNING id, submitted_at`,
-		j.Username, j.QueueID, state.String(), j.NumPages, j.NumColorPages,
+		j.Username, j.QueueID, j.State.String(), j.NumPages, j.NumColorPages,
 		j.Copies, j.Cost, j.Color, j.Duplex, j.DocumentName).Scan(&j.ID, &j.SubmittedAt)
 	if err != nil {
 		return job.Job{}, s.mapPostgresError(err, "db insert")

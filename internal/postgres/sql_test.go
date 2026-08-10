@@ -2,8 +2,10 @@ package postgres
 
 import (
 	"context"
+	"fmt"
 	"go/ast"
 	"go/constant"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -25,9 +27,9 @@ func TestAllSQLQueriesPrepare(t *testing.T) {
 	}
 	defer conn.Release()
 
-	for _, q := range queries {
+	for i, q := range queries {
 		t.Run(q.pos, func(t *testing.T) {
-			_, err := conn.Conn().Prepare(ctx, "check_"+strings.ReplaceAll(q.pos, ":", "_"), q.sql)
+			_, err := conn.Conn().Prepare(ctx, fmt.Sprintf("check_%d", i), q.sql)
 			if err != nil {
 				t.Errorf("%s\n%s\n%v", q.pos, strings.TrimSpace(q.sql), err)
 			}
@@ -91,8 +93,9 @@ func collectSQL(t *testing.T, dir string) []sqlQuery {
 					s := constant.StringVal(tv.Value)
 
 					if looksLikeSQL(s) {
+						p := pkg.Fset.Position(call.Pos())
 						out = append(out, sqlQuery{
-							pos: pkg.Fset.Position(call.Pos()).String(),
+							pos: fmt.Sprintf("%s:%d:%d", filepath.Base(p.Filename), p.Line, p.Column),
 							sql: s,
 						})
 						break
