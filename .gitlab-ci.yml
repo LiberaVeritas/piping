@@ -44,7 +44,7 @@ test:
   stage: test
   image: golang:1.26
   services:
-    - postgres
+    - postgres:18-alpine
   variables:
     POSTGRES_USER: "piping"
     POSTGRES_PASSWORD: "piping"
