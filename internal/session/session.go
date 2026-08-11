@@ -78,6 +78,7 @@ func (m *Manager) Issue(w http.ResponseWriter, sub string, role user.Role) error
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   int(m.ttl.Seconds()),
 	})
+	m.log.Info("issuing session", "user", sub, "role", role)
 	return nil
 }
 

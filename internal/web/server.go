@@ -77,7 +77,7 @@ func (s *Server) requireSession(next http.Handler) http.Handler {
 		s.log.Debug("require session wrapping", "method", r.Method, "url", r.URL)
 		sess, err := s.session.FromRequest(r)
 		if err != nil {
-			s.log.Info("getting session", "err", err)
+			s.log.Debug("getting session", "err", err)
 			authURL, aErr := s.oidc.GetAuthURL(r.URL.RequestURI())
 			if aErr != nil {
 				s.log.Error("logging in", "auth err", aErr, "session err", err)
