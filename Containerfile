@@ -1,5 +1,7 @@
 FROM golang:1.26-alpine3.24 AS builder
 
+ARG PIPING_BUILD
+
 WORKDIR /app
 ENV GOEXPERIMENT=jsonv2
 COPY go.mod go.sum ./

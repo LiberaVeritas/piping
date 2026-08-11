@@ -72,7 +72,6 @@ build:
   tags:
     - docker-build
   script:
-    - export PIPING_BUILD=$CI_PIPELINE_IID
     - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u $CI_REGISTRY_USER --password-stdin
-    - docker build -t "${CI_REGISTRY_IMAGE}:${CI_PIPELINE_IID}" -f Containerfile .
+    - docker build -t "${CI_REGISTRY_IMAGE}:${CI_PIPELINE_IID}" --build-arg PIPING_BUILD=$CI_PIPELINE_IID -f Containerfile .
     - docker push --platform=linux/amd64 "${CI_REGISTRY_IMAGE}:${CI_PIPELINE_IID}"
