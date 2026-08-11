@@ -59,33 +59,18 @@ var (
 )
 
 const (
-	adminGroup = "520-Infopoint Admins"
-	userGroup  = "520-Infopoint Users"
+	adminGroup = "Org-Admins"
+	userGroup  = "Org-Users"
 )
 
 var staffGroups = []string{
-	"520-CTF Members",
-	"520-CTF Contributors",
-	"520-CTF Probationary Members",
+	"Org-Managers",
+	"Org-Staff",
 }
 
-// 000-All Current Term Students,OU=Campus Groups,OU=Network & Communications Services,OU=University Administration,DC=campus,DC=MCGILL,DC=CA
-// 000-All Students,OU=Campus Groups,OU=Network & Communications Services,OU=University Administration,DC=campus,DC=MCGILL,DC=CA
-// 000-All Undergrad Students,OU=Campus Groups,OU=Network & Communications Services,OU=University Administration,DC=campus,DC=MCGILL,DC=CA
-// 000-Science-Undergrads,OU=Student Groups,OU=STUDENTS,DC=campus,DC=CGILL,DC=CA
-// 000-All-Returning-Students,OU=Student Groups,OU=STUDENTS,DC=campus,DC=MCGILL,DC=CA
 const (
-	groupAllStudents          = "000-All Students"
-	groupScienceUndergrads    = "000-Science-Undergrads"
-	groupArtSciUndergrads     = "000-Arts_Sci-Undergrads"
-	groupAllUndergrads        = "000-All Undergrad Students"
-	groupAllReturningStudents = "000-All-Returning-Students"
-	groupCurrentTermStudents  = "000-All Current Term Students"
-)
-
-const (
-	facultyOfScience   = "Faculty of Science"
-	interfacultyArtSci = "Interfaculty, B.A. & Sc."
+	groupAllStudents = "All-Students"
+	facultyOfScience = "Faculty of Science"
 )
 
 func RoleFromGroups(groups []string) Role {
@@ -130,21 +115,8 @@ func EligibleForQuota(faculty string, groups []string) bool {
 	if strings.EqualFold(faculty, facultyOfScience) && containsFold(groups, groupAllStudents) {
 		return true
 	}
-	if strings.EqualFold(faculty, interfacultyArtSci) && containsFold(groups, groupArtSciUndergrads) {
-		return true
-	}
 	if RoleFromGroups(groups) != RoleNone {
 		return true
 	}
 	return false
-}
-
-func CTFGroups(groups []string) []string {
-	var out []string
-	for _, g := range groups {
-		if strings.HasPrefix(g, "520-") {
-			out = append(out, g)
-		}
-	}
-	return out
 }
