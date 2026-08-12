@@ -24,6 +24,8 @@ jobs:
 
     - name: setup lint
       uses: golangci/golangci-lint-action@v9.3.0
+      with:
+        GOEXPERIMENT: 'jsonv2'
 
     - name: Lint
       run: golangci-lint run ./...
