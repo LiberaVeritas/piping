@@ -23,13 +23,22 @@ jobs:
       with:
         go-version: '1.26'
 
+    - name: testdb
+      uses: ikalnytskyi/action-setup-postgres@v8
+      with:
+        username: user
+        password: pass
+        database: test
+
     - name: setup lint
       uses: golangci/golangci-lint-action@v9.3.0
 
     - name: Lint
       run: golangci-lint run ./...
-
+    
     - name: Test
+      env:
+        TEST_DATABASE_URL: postgres://user:pass@localhost:5432/test
       run: go test ./... -race
 
     - name: Build
