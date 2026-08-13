@@ -1,0 +1,46 @@
+# This workflow will build a golang project
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-go
+
+name: Go
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+
+  build:
+    env:
+      GOEXPERIMENT: 'jsonv2'
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v7.0.1
+
+    - name: Set up Go
+      uses: actions/setup-go@v7.0.0
+      with:
+        go-version: '1.26'
+
+    - name: testdb
+      uses: ikalnytskyi/action-setup-postgres@v8
+      with:
+        username: user
+        password: pass
+        database: test
+
+    - name: setup lint
+      uses: golangci/golangci-lint-action@v9.3.0
+
+    - name: Lint
+      run: golangci-lint run ./...
+    
+    - name: Test
+      env:
+        TEST_DATABASE_URL: postgres://user:pass@localhost:5432/test
+      run: go test ./... -race
+
+    - name: Build
+      run: docker build . --file Containerfile --tag piping:$(date +%s)
+
