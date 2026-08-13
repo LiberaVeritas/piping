@@ -35,8 +35,9 @@
 <main>
 	<section id="upload">
 		<h2>upload</h2>
-		<label id="file-dropbox" data-role="file-upload" for="file-input">
-			<input type="file" id="file-input" form="form" name="document" accept=".pdf,application/pdf" required data-maxsize="{{.MaxSize}}" hx-preserve 
+		<label id="file-dropbox" data-role="file-upload" for="file-input" tabindex="0">
+			<input type="file" id="file-input" form="form" name="document" aria-label="File dropbox"
+				accept=".pdf,application/pdf" required data-maxsize="{{.MaxSize}}" hx-preserve 
 				hx-on:change="
 					const file = this.files[0];
 					const maxSize = this.getAttribute('data-maxsize');
@@ -64,7 +65,7 @@
 		</label>
 		<div id="file-info" hidden>
 			<span id="file-name">filename</span>
-			<button data-role="file-remove" type="button" 
+			<button data-role="file-remove" type="button" aria-label="Remove file" tabindex="0"
 				hx-on:click="
 					document.querySelector('#file-input').value = '';
 					document.querySelector('#file-info').hidden = true;
@@ -77,7 +78,7 @@
 		<div id="queue-list">
 			{{range .Queues}}
 			<label data-role="queue-item">
-				<input type="radio" name="queue_id" form="form" value="{{.ID}}" required/>
+				<input type="radio" name="queue_id" form="form" value="{{.ID}}" required tabindex="0"/>
 				<span>{{.Name}}</span>
 			</label>
 			{{end}}
@@ -88,11 +89,11 @@
 		<span>Each color page counts for 3x your page quota</span>
 		<div id="print-options">
 			<label data-role="print-option">
-				<input type="checkbox" name="color"/>
+				<input type="checkbox" name="color" form="form" tabindex="0"/>
 				<span>Color</span>
 			</label>
 			<label data-role="print-option">
-				<input type="checkbox" name="duplex" checked/>
+				<input type="checkbox" name="duplex" form="form" tabindex="0" checked/>
 				<span>Double sided</span>
 			</label>
 		</div>
@@ -104,7 +105,8 @@
 					c.value = Math.max(1, parseInt(c.value, 10)-1);
 			">&minus;
 			</button>
- 			<input id="copies" type="text" form="form" value="1" name="copies" inputmode="numeric" pattern="[0-9]*" data-maxcopies="{{.MaxCopies}}"
+ 			<input id="copies" type="text" form="form" value="1" name="copies" 
+				inputmode="numeric" pattern="[0-9]*" data-maxcopies="{{.MaxCopies}}"
 				hx-on:change="
 					const maxCopies = this.getAttribute('data-maxcopies');
 					if (Number.isNaN(parseInt(this.value, 10))) {
@@ -127,10 +129,14 @@
 			</button>
 		</fieldset>
 	</section>
-	<form id="form" hx-encoding="multipart/form-data" hx-post="/job" hx-indicator="#submit-indicator" hx-target="body" 
+	<form id="form" hx-encoding="multipart/form-data" hx-post="/job" hx-indicator="#submit-indicator" 
+		hx-target="body" 
 		hx-on::after-request="if(event.detail.successful) this.reset()">
 		<div data-role="submission">
-			<button type="submit" hx-on:click="this.setAttribute('data-role', 'submitting');">Submit<span id="submit-indicator" class="htmx-indicator">ting...</span></button>
+			<button type="submit" hx-on:click="this.setAttribute('data-role', 'submitting');">
+				Submit
+				<span id="submit-indicator" class="htmx-indicator">ting...</span>
+			</button>
 		</div>
 	</form>
 </main>
