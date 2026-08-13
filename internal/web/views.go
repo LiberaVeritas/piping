@@ -93,6 +93,7 @@ type homeView struct {
 	Recent    []jobView
 	MaxCopies int
 	MaxSize   int64
+	ColorRate int
 }
 
 type jobsView struct {

@@ -1,5 +1,7 @@
 FROM golang:1.26-alpine3.24 AS builder
 
+ARG PIPING_BUILD
+
 WORKDIR /app
 ENV GOEXPERIMENT=jsonv2
 COPY go.mod go.sum ./
@@ -9,6 +11,8 @@ COPY internal/ ./internal/
 RUN CGO_ENABLED=0 go build -o piping piping/cmd/piping
 
 FROM alpine:3.24
+ARG PIPING_BUILD
+ENV PIPING_BUILD=$PIPING_BUILD
 COPY --from=builder /app/piping /usr/local/bin/
 ENV TZ="America/Toronto"
 RUN apk add --no-cache ghostscript samba-client ca-certificates && adduser -D -H piping

@@ -1,44 +1,143 @@
-{{define "layout"}}<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light dark">
-  <title>Piping Printing</title>
-  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
-  <link rel="icon" href="/static/favicon.ico" sizes="32x32">
-  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
-  <link rel="preload" href="/static/fonts/Exo2.woff2" as="font" type="font/woff2">
-  <link rel="stylesheet" href="/static/piping.css">
-  <script src="/static/htmx.min.js"></script>
-  <script>
-		async function isPdf(file) {
-			const header = await file.slice(0, 5).arrayBuffer();
-			const bytes = new Uint8Array(header);
-			return String.fromCharCode(...bytes) === '%PDF-';
-		}
-		window.addEventListener('dragover', (e) => e.preventDefault());
-		window.addEventListener('drop', (e) => e.preventDefault());
-	</script>
-</head>
-<body>
-	<header>
-		<nav hx-boost="true">
-			<ul>
-				<li id="wordmark">
-					<a href="/">
-						<strong>Piping Printing</strong>{{if .Build}}<span>({{.Build}})</span>{{end}}
-					</a>
-				</li>
-			</ul>
-			<ul>
-				<li><a href="/">Print</a></li>
-				<li><a href="/jobs">My jobs</a></li>
-				<li><a>{{.Username}}</a></li>
-			</ul>
-		</nav>
-	</header>
-	{{block "content" .}}{{end}}
-</body>
-</html>
+{{define "content"}}
+<aside>
+	<section id="quota">
+		<h2>quota</h2>
+		{{if gt .Granted 0}}
+		<progress value="{{.Remaining}}" max="{{.Granted}}" aria-label="remaining quota"></progress>
+		<span data-role="subtext">{{.Remaining}} / {{.Granted}} pages left</span>
+		{{else}}
+		<span>No quota</span>
+		{{end}}
+	</section>
+	<section id="recent">
+		<details open hx-on:load="
+				const isMobile = window.matchMedia('(max-width: 48rem)');
+				if (isMobile.matches) {
+					this.open = false;
+				} else {
+					this.open = true;
+				}
+			">
+			<summary><h2>recent</h2></summary>
+			{{range .Recent}}
+			<div data-role="job-row">
+				<span>{{.DocumentName}}</span>
+				<span>{{.State}}</span>
+			</div>
+			<small data-role="subtext">{{.Destination}} &middot; {{.TimeSince}} ago</small>
+			<hr/>
+			{{else}}
+			<span>No recent jobs</span>
+			{{end}}
+		</details>
+	</section>
+</aside>
+<main>
+	<section id="upload">
+		<h2>upload</h2>
+		<label id="file-dropbox" data-role="file-upload" for="file-input" tabindex="0">
+			<input type="file" id="file-input" form="form" name="document" aria-label="File dropbox"
+				accept=".pdf,application/pdf" required data-maxsize="{{.MaxSize}}" hx-preserve 
+				hx-on:change="
+					const file = this.files[0];
+					const maxSize = this.getAttribute('data-maxsize');
+					if (file && file.size > maxSize) {
+						document.querySelector('#file-status-text').textContent = 'File exceeds size limit of ' + (maxSize / 1e6).toFixed(1) + 'MB';
+						this.value = '';
+						return;
+					}
+					else if (!(await isPdf(file))) {
+						document.querySelector('#file-status-text').textContent = 'File is not a valid PDF';
+						this.value = '';
+						return;
+					}
+					this.hidden = true;
+					document.querySelector('#file-dropbox').hidden = true;
+					document.querySelector('#file-info').hidden = false;
+					document.querySelector('#file-name').textContent = file.name;
+				" 
+				hx-on:dragover="
+					event.preventDefault();
+					event.dataTransfer.dropEffect = 'copy';
+			"/>
+			<strong>Choose a PDF</strong>
+			<small data-role="subtext" id="file-status-text">No file selected</small>
+		</label>
+		<div id="file-info" hidden>
+			<span id="file-name">filename</span>
+			<button data-role="file-remove" type="button" aria-label="Remove file" tabindex="0"
+				hx-on:click="
+					document.querySelector('#file-input').value = '';
+					document.querySelector('#file-info').hidden = true;
+					document.querySelector('#file-dropbox').hidden = false;
+			">Remove</button>
+		</div>
+	</section>
+	<section id="queue">
+		<h2>queue</h2>
+		<div id="queue-list">
+			{{range .Queues}}
+			<label data-role="queue-item">
+				<input type="radio" name="queue_id" form="form" value="{{.ID}}" required tabindex="0"/>
+				<span>{{.Name}}</span>
+			</label>
+			{{end}}
+		</div>
+	</section>
+	<section id="options">
+		<h2>options</h2>
+		<span>Each color page counts for 3x your page quota</span>
+		<div id="print-options">
+			<label data-role="print-option">
+				<input type="checkbox" name="color" form="form" tabindex="0"/>
+				<span>Color</span>
+			</label>
+			<label data-role="print-option">
+				<input type="checkbox" name="duplex" form="form" tabindex="0" checked/>
+				<span>Double sided</span>
+			</label>
+		</div>
+		<fieldset data-role="stepper">
+			<legend>Copies</legend>
+			<button type="button" aria-label="Decrease copies" id="decrement"
+				hx-on:click="
+					const c = document.getElementById('copies');
+					c.value = Math.max(1, parseInt(c.value, 10)-1);
+			">&minus;
+			</button>
+ 			<input id="copies" type="text" form="form" value="1" name="copies" 
+				inputmode="numeric" pattern="[0-9]*" data-maxcopies="{{.MaxCopies}}"
+				hx-on:change="
+					const maxCopies = this.getAttribute('data-maxcopies');
+					if (Number.isNaN(parseInt(this.value, 10))) {
+						this.value = 1;
+						return;
+					}
+					if (this.value < 1) {
+						this.value = 1;
+					}
+					if (this.value > maxCopies) {
+						this.value = maxCopies;
+					}
+			"/>
+			<button type="button" aria-label="Increase copies" id="increment"
+				hx-on:click="
+					const c = document.querySelector('#copies');
+					const maxCopies = c.getAttribute('data-maxcopies');
+					c.value = Math.min(maxCopies, parseInt(c.value, 10)+1);
+			">&plus;
+			</button>
+		</fieldset>
+	</section>
+	<form id="form" hx-encoding="multipart/form-data" hx-post="/job" hx-indicator="#submit-indicator" 
+		hx-target="body" 
+		hx-on::after-request="if(event.detail.successful) this.reset()">
+		<div data-role="submission">
+			<button type="submit" hx-on:click="this.setAttribute('data-role', 'submitting');">
+				Submit
+				<span id="submit-indicator" class="htmx-indicator">ting...</span>
+			</button>
+		</div>
+	</form>
+</main>
 {{end}}

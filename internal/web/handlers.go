@@ -53,6 +53,7 @@ func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
 		Recent:    toJobViews(recent),
 		MaxCopies: s.maxCopies,
 		MaxSize:   s.maxBytes,
+		ColorRate: s.colorRate,
 	})
 }
 

@@ -81,27 +81,27 @@ func run(ctx context.Context, getenv func(string) string, logw io.Writer) error 
 	if err != nil {
 		return err
 	}
-	sweepBatch, err := envInt(getenv, "SWEEP_BATCH", 100)
+	sweepBatch, err := envPosInt(getenv, "SWEEP_BATCH", 100)
 	if err != nil {
 		return err
 	}
-	maxBytes, err := envInt(getenv, "MAX_BYTES", 50<<20)
+	maxBytes, err := envPosInt(getenv, "MAX_BYTES", 50<<20)
 	if err != nil {
 		return err
 	}
-	maxPages, err := envInt(getenv, "MAX_PAGES", 100)
+	maxPages, err := envPosInt(getenv, "MAX_PAGES", 100)
 	if err != nil {
 		return err
 	}
-	maxCopies, err := envInt(getenv, "MAX_COPIES", 50)
+	maxCopies, err := envPosInt(getenv, "MAX_COPIES", 50)
 	if err != nil {
 		return err
 	}
-	maxSendAttempts, err := envInt(getenv, "MAX_SEND_ATTEMPTS", 5)
+	maxSendAttempts, err := envPosInt(getenv, "MAX_SEND_ATTEMPTS", 5)
 	if err != nil {
 		return err
 	}
-	colorRate, err := envInt(getenv, "COLOR_RATE", 3)
+	colorRate, err := envPosInt(getenv, "COLOR_RATE", 3)
 	if err != nil {
 		return err
 	}
@@ -231,7 +231,8 @@ func run(ctx context.Context, getenv func(string) string, logw io.Writer) error 
 		return fmt.Errorf("parsing oidc redirect uri %q: %w", oidcRedirectURI, err)
 	}
 	origin := u.Scheme + "://" + u.Host
-	srv, err := web.NewServer(submitter, prov, store, oidcClient, session, ready, int64(maxBytes), maxCopies, origin, build, log)
+	srv, err := web.NewServer(submitter, prov, store, oidcClient, session, ready,
+		int64(maxBytes), maxCopies, colorRate, origin, build, log)
 	if err != nil {
 		return fmt.Errorf("creating web server: %w", err)
 	}
@@ -291,17 +292,10 @@ func envInt(getenv func(string) string, key string, def int) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("invalid integer in %s: %q", key, v)
 	}
+	if n < 0 {
+		return 0, fmt.Errorf("can't be negative %s: %q", key, v)
+	}
 	return n, nil
-}
-
-func envPosInt(getenv func(string) string, key string, def int) (int, error) {
-	n, err := envInt(getenv, key, def)
-	if err != nil {
-		return 0, err
-	}
-	if n == 0 {
-		return 0, fmt.Errorf("must be positive %s: %d", key, n)
-	}
 }
 
 func envPosInt(getenv func(string) string, key string, def int) (int, error) {

@@ -32,6 +32,7 @@ type Server struct {
 	ready     func(context.Context) error
 	maxBytes  int64
 	maxCopies int
+	colorRate int
 	origin    string
 	build     string
 	log       *slog.Logger
@@ -40,14 +41,14 @@ type Server struct {
 
 func NewServer(submit *app.Submitter, prov *app.Provisioner, dash dashboardStore,
 	oidc *oidc.Client, sess *session.Manager, ready func(context.Context) error,
-	maxUpload int64, maxCopies int, origin, build string, log *slog.Logger) (*Server, error) {
+	maxUpload int64, maxCopies, colorRate int, origin, build string, log *slog.Logger) (*Server, error) {
 	pages, err := parsePages()
 	if err != nil {
 		return nil, err
 	}
 	return &Server{
 		submit: submit, prov: prov, dash: dash, oidc: oidc, session: sess, ready: ready, maxBytes: maxUpload,
-		maxCopies: maxCopies, origin: origin, build: build, log: log, pages: pages,
+		maxCopies: maxCopies, colorRate: colorRate, origin: origin, build: build, log: log, pages: pages,
 	}, nil
 }
 
