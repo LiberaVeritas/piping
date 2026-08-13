@@ -294,6 +294,27 @@ func envInt(getenv func(string) string, key string, def int) (int, error) {
 	return n, nil
 }
 
+func envPosInt(getenv func(string) string, key string, def int) (int, error) {
+	n, err := envInt(getenv, key, def)
+	if err != nil {
+		return 0, err
+	}
+	if n == 0 {
+		return 0, fmt.Errorf("must be positive %s: %d", key, n)
+	}
+}
+
+func envPosInt(getenv func(string) string, key string, def int) (int, error) {
+	n, err := envInt(getenv, key, def)
+	if err != nil {
+		return 0, err
+	}
+	if n == 0 {
+		return 0, fmt.Errorf("must be positive %s: %d", key, n)
+	}
+	return n, nil
+}
+
 func envFloat(getenv func(string) string, key string, def float64) (float64, error) {
 	v := getenv(key)
 	if v == "" {
