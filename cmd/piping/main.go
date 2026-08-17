@@ -211,7 +211,7 @@ func run(ctx context.Context, getenv func(string) string, logw io.Writer) error 
 		if err != nil {
 			return err
 		}
-		oidcClient, err = oidc.New(ctx, cfg, authEndpoint, tokenEndpoint, userEndpoint)
+		oidcClient, err = oidc.New(cfg, authEndpoint, tokenEndpoint, userEndpoint)
 		if err != nil {
 			return err
 		}

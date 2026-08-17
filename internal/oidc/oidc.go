@@ -82,7 +82,7 @@ type Sealer interface {
 
 const stateLabel = "oidc_state"
 
-func New(ctx context.Context, cfg ClientConfig, authEndpoint, tokenEndpoint, userEndpoint string) (*Client, error) {
+func New(cfg ClientConfig, authEndpoint, tokenEndpoint, userEndpoint string) (*Client, error) {
 	if cfg.Sealer == nil || cfg.ClientID == "" || cfg.ClientSecret == "" || cfg.RedirectURI == "" ||
 		cfg.Scopes == "" || cfg.Log == nil || authEndpoint == "" || tokenEndpoint == "" || userEndpoint == "" {
 		return nil, fmt.Errorf("Sealer or Log is nil or missing client values client id %q, redirect uri %q, scopes %q, "+
