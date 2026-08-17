@@ -55,6 +55,7 @@ func (p *Provisioner) Provision(ctx context.Context, user user.User, currentSeme
 }
 
 func (p *Provisioner) QuotaFor(semesterCode int) int {
+	//nolint:gocritic // can't use switch
 	if semesterCode%100 == 5 {
 		// summers give zero quota
 		return 0

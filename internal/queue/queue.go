@@ -58,6 +58,7 @@ type LoadBalancer interface {
 }
 
 func LoadBalancerFromPolicy(p LoadBalancerPolicy) (LoadBalancer, error) {
+	//nolint:gocritic // adding more options later
 	switch p {
 	case UniformPolicy:
 		return uniformBalancer{}, nil

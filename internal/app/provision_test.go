@@ -35,7 +35,7 @@ func (f *fakeProvStore) EnsureSemester(_ context.Context, id, dq int) (int, erro
 	f.semesters[id] = dq
 	return dq, nil
 }
-func (f *fakeProvStore) EnsureGrant(_ context.Context, u string, sem, amt int) error {
+func (f *fakeProvStore) EnsureGrant(_ context.Context, _ string, sem, amt int) error {
 	if err := f.grantErr[sem]; err != nil {
 		return err
 	}

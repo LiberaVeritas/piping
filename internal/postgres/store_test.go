@@ -466,7 +466,7 @@ func TestStoreQuotaStateMachine(t *testing.T) {
 			"submit": func(rt *rapid.T) {
 				cost := rapid.IntRange(1, 30).Draw(rt, "cost")
 				j, err := store.CheckQuotaAndStore(ctx, job.Job{
-					Username: user, QueueID: mustQueue(rt, ctx, pool), Cost: cost,
+					Username: user, QueueID: mustQueue(ctx, rt, pool), Cost: cost,
 					NumPages: cost, Copies: 1, DocumentName: "x.pdf",
 				})
 				switch {
@@ -530,7 +530,7 @@ func TestStoreQuotaStateMachine(t *testing.T) {
 
 var queueID int64
 
-func mustQueue(rt *rapid.T, ctx context.Context, pool *pgxpool.Pool) int64 {
+func mustQueue(ctx context.Context, rt *rapid.T, pool *pgxpool.Pool) int64 {
 	if queueID != 0 {
 		return queueID
 	}
