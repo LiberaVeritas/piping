@@ -55,17 +55,17 @@ func (p *Provisioner) Provision(ctx context.Context, user user.User, currentSeme
 }
 
 func (p *Provisioner) QuotaFor(semesterCode int) int {
-	//nolint:gocritic // can't use switch
-	if semesterCode%100 == 5 {
+	switch {
+	case semesterCode%100 == 5:
 		// summers give zero quota
 		return 0
-	} else if semesterCode < 201609 {
+	case semesterCode < 201609:
 		// tepid didn't exist before fall 2016
 		return 0
-	} else if semesterCode == 201609 {
+	case semesterCode == 201609:
 		// first semester was 500 pages
 		return 500
-	} else if 201609 < semesterCode && semesterCode < 201909 {
+	case 201609 < semesterCode && semesterCode < 201909:
 		// these gave 1000 pages
 		return 1000
 	}
